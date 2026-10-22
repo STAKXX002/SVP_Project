@@ -8,5 +8,4 @@ scikit-learn
 gradio
 opencv-python
 scenedetect[opencv]
-ultralytics
 tqdm
