@@ -1,0 +1,12 @@
+numpy
+scipy
+librosa
+soundfile
+matplotlib
+hmmlearn
+scikit-learn
+gradio
+opencv-python
+scenedetect[opencv]
+ultralytics
+tqdm
