@@ -2,9 +2,14 @@
 
 Usage:
     python -m speech.dtw_score data/reference/krishna.wav data/learner/krishna_1.wav
+
+Similarity = 0.85 x acoustic + 0.15 x duration - flagged-region penalty, clipped to 0..100.
+Calibration constants are read from speech/calibration.json when it exists
+(written by `python -m speech.calibrate --write`). Otherwise the defaults below apply.
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import librosa
@@ -27,14 +32,25 @@ from speech.features import (
     spectral_summary,
 )
 
-# Calibration constants. These are heuristics: tune them on your own recordings.
-# COST_ZERO: average cosine cost per path step that maps to 0% similarity.
-#            Set it near the cost you see when comparing two DIFFERENT words.
-# FLAG_COST: per-frame cost above which a region is flagged as a mismatch.
-COST_ZERO = 0.80
-FLAG_COST = 0.55
+CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
+
+# Defaults, used only until calibration.json exists.
+#   COST_BEST: average DTW cost of a good repeat of the SAME word by the same speaker.
+#              Maps to 100% acoustic score. It is never 0, because two takes always differ.
+#   COST_ZERO: average DTW cost of a DIFFERENT word. Maps to 0% acoustic score.
+#   FLAG_COST: per-frame cost above which a reference region is flagged as a mismatch.
+DEFAULTS = {"COST_BEST": 0.30, "COST_ZERO": 0.65, "FLAG_COST": 0.55}
 MIN_FLAG_FRAMES = 5  # ignore flagged runs shorter than 50 ms
 ACOUSTIC_WEIGHT = 0.85  # remainder goes to the duration score
+FLAG_PENALTY = 1.5  # similarity points removed per percent of the reference that is flagged
+MAX_FLAG_PENALTY = 40.0
+
+
+def load_constants():
+    consts = dict(DEFAULTS)
+    if CALIBRATION_FILE.exists():
+        consts.update(json.loads(CALIBRATION_FILE.read_text()))
+    return consts
 
 
 def align(ref_feats, learner_feats):
@@ -59,7 +75,7 @@ def per_frame_cost(wp, local, n_ref, smooth=5):
     return uniform_filter1d(cost, size=smooth, mode="nearest")
 
 
-def flag_segments(frame_cost, threshold=FLAG_COST, min_frames=MIN_FLAG_FRAMES):
+def flag_segments(frame_cost, threshold, min_frames=MIN_FLAG_FRAMES):
     """Return (start_s, end_s, mean_cost) for runs of reference frames above threshold."""
     mask = frame_cost > threshold
     segments = []
@@ -83,8 +99,23 @@ def duration_score(ref_len_s, learner_len_s):
     return 100.0 * max(0.0, 1.0 - abs(np.log(ratio)) / np.log(2.0))
 
 
+def acoustic_score(avg_cost, cost_best, cost_zero):
+    """Linear map: cost_best -> 100, cost_zero -> 0, clipped."""
+    span = max(cost_zero - cost_best, 1e-6)
+    return 100.0 * float(np.clip((cost_zero - avg_cost) / span, 0.0, 1.0))
+
+
+def pair_cost(ref_path, learner_path):
+    """Average DTW cost and per-frame cost for one pair. Used by calibrate.py."""
+    f_ref = extract_mfcc(load_audio(ref_path))
+    f_lrn = extract_mfcc(load_audio(learner_path))
+    _, wp, local = align(f_ref, f_lrn)
+    return float(local.mean()), per_frame_cost(wp, local, len(f_ref))
+
+
 def score_pronunciation(ref_path, learner_path, out_dir=None):
     """Compare two recordings and return a dict of scores and diagnostics."""
+    consts = load_constants()
     y_ref = load_audio(ref_path)
     y_lrn = load_audio(learner_path)
 
@@ -93,15 +124,19 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
 
     C, wp, local = align(f_ref, f_lrn)
     avg_cost = float(local.mean())
-    acoustic = 100.0 * float(np.clip(1.0 - avg_cost / COST_ZERO, 0.0, 1.0))
+    acoustic = acoustic_score(avg_cost, consts["COST_BEST"], consts["COST_ZERO"])
 
     ref_len = len(y_ref) / SR
     lrn_len = len(y_lrn) / SR
     dur = duration_score(ref_len, lrn_len)
-    overall = ACOUSTIC_WEIGHT * acoustic + (1.0 - ACOUSTIC_WEIGHT) * dur
-
     frame_cost = per_frame_cost(wp, local, len(f_ref))
-    segments = flag_segments(frame_cost)
+    segments = flag_segments(frame_cost, consts["FLAG_COST"])
+
+    # A single wrong sound barely moves the word-level average, so also penalise flagged time.
+    flagged_frac = sum(e - s for s, e, _ in segments) * SR / HOP / max(len(f_ref), 1)
+    penalty = min(MAX_FLAG_PENALTY, FLAG_PENALTY * 100.0 * flagged_frac)
+    overall = ACOUSTIC_WEIGHT * acoustic + (1.0 - ACOUSTIC_WEIGHT) * dur - penalty
+    overall = float(np.clip(overall, 0.0, 100.0))
 
     s_ref = spectral_summary(y_ref)
     s_lrn = spectral_summary(y_lrn)
@@ -115,6 +150,9 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
         "learner_duration_s": lrn_len,
         "centroid_diff_hz": float(s_lrn["centroid"].mean() - s_ref["centroid"].mean()),
         "flagged_segments": segments,
+        "flagged_fraction": float(flagged_frac),
+        "flag_penalty": float(penalty),
+        "constants": consts,
         "figure": None,
     }
 
@@ -122,7 +160,7 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
         name = f"{Path(ref_path).stem}_vs_{Path(learner_path).stem}"
         result["figure"] = str(
             plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments,
-                            Path(out_dir) / f"{name}_dtw.png", name)
+                            Path(out_dir) / f"{name}_dtw.png", name, consts["FLAG_COST"])
         )
     return result
 
@@ -134,7 +172,8 @@ def _mel_db(y):
     return librosa.power_to_db(mel, ref=np.max)
 
 
-def plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments, out_path, title=""):
+def plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments, out_path, title="",
+                    flag_cost=DEFAULTS["FLAG_COST"]):
     """Four panels: both spectrograms, DTW path on the cost matrix, per-frame cost."""
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
@@ -154,7 +193,7 @@ def plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments, out_path, title="
 
     t = np.arange(len(frame_cost)) * HOP / SR
     axes[1, 1].plot(t, frame_cost, color="tab:blue")
-    axes[1, 1].axhline(FLAG_COST, color="tab:red", linestyle="--", label="flag threshold")
+    axes[1, 1].axhline(flag_cost, color="tab:red", linestyle="--", label="flag threshold")
     for start, end, _ in segments:
         axes[1, 1].axvspan(start, end, color="tab:red", alpha=0.25)
     axes[1, 1].set_xlabel("reference time (s)")
@@ -178,6 +217,8 @@ def format_report(result):
         f"  duration score:  {result['duration_score']:.0f}%  "
         f"(ref {result['ref_duration_s']:.2f} s, learner {result['learner_duration_s']:.2f} s)",
         f"  spectral centroid difference: {result['centroid_diff_hz']:+.0f} Hz",
+        f"  flagged: {100 * result['flagged_fraction']:.0f}% of reference "
+        f"(penalty {result['flag_penalty']:.0f} points)",
     ]
     if result["flagged_segments"]:
         lines.append("  flagged regions (reference time):")
