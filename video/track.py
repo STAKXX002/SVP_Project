@@ -2,10 +2,13 @@
 
 Usage:
     python -m video.track data/video/input.mp4 --start 600 --duration 120
+    python -m video.track data/video/input.mp4 --scene 41          (one whole scene, best results)
     python -m video.track data/video/input.mp4 --backend bgsub
     python -m video.track data/video/input.mp4 --classes 0 2 --fps 5
 
 Tracking the full 30 minutes on a CPU is slow, so the default is a 120 s window starting at --start.
+Prefer a single steady scene (--scene N). With bgsub, the background model and tracks are reset at every
+scene cut inside the window; a window that spans many cuts still gives fragmented tracks.
 A clip of that window is first cut and downscaled to --height pixels with ffmpeg and cached.
 Time per sampled frame on a laptop CPU is roughly 60 to 120 ms for YOLOv8n at imgsz 640, so
 120 s at 5 fps (600 frames) takes about one to two minutes.
@@ -39,6 +42,7 @@ from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 
 from video.common import OUT_ROOT, cache_dir, iter_frames, probe, require_ffmpeg, save_json, stem
+from video.scenes import detect_scenes_cached
 
 TRAIL = 40  # samples of trail drawn behind each box
 
@@ -124,16 +128,32 @@ class CentroidTracker:
         return [assigned[c] for c in range(len(cents))]
 
 
-def bgsub_backend(clip, fps, min_area_frac=0.002, warmup=10):
+def _new_subtractor():
+    return cv2.createBackgroundSubtractorMOG2(history=150, varThreshold=32, detectShadows=True)
+
+
+def bgsub_backend(clip, fps, cuts=(), min_area_frac=0.002, warmup=10):
+    """MOG2 + centroid tracker. cuts are clip-relative times (s) where the shot changes.
+
+    At each cut the background model and the active tracks are reset, because a new shot
+    makes the whole frame look like foreground. Track IDs keep increasing across cuts.
+    """
     info = probe(clip)
-    sub = cv2.createBackgroundSubtractorMOG2(history=150, varThreshold=32, detectShadows=True)
+    sub = _new_subtractor()
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     tracker = CentroidTracker(max_dist=0.15 * info["width"])
     min_area = min_area_frac * info["width"] * info["height"]
-    for k, (t, frame) in enumerate(iter_frames(clip, fps, width=None)):
+    cuts = sorted(cuts)
+    ci, since = 0, 0
+    for t, frame in iter_frames(clip, fps, width=None):
+        while ci < len(cuts) and t >= cuts[ci] - 1e-6:
+            sub = _new_subtractor()
+            tracker.tracks = {}
+            since = 0
+            ci += 1
         mask = sub.apply(frame)
         dets = []
-        if k >= warmup:
+        if since >= warmup:
             mask = (mask == 255).astype(np.uint8) * 255  # drop the grey shadow label (127)
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
             mask = cv2.dilate(mask, kernel, iterations=2)
@@ -145,6 +165,7 @@ def bgsub_backend(clip, fps, min_area_frac=0.002, warmup=10):
                     boxes.append((x, y, x + w, y + h))
             for tid, b in zip(tracker.update(boxes), boxes):
                 dets.append((tid, *map(float, b), 1.0))
+        since += 1
         yield t, frame, dets
 
 
@@ -172,6 +193,9 @@ def annotate(frame, dets, trails):
 def run_tracking(video, start, duration, fps, backend, classes, conf, imgsz, height, min_len):
     clip = cut_clip(video, start, duration, height)
     info = probe(clip)
+    cuts = [sc["start_s"] - start for sc in detect_scenes_cached(video)
+            if start < sc["start_s"] < start + duration]
+    print(f"window {start:.0f}s to {start + duration:.0f}s contains {len(cuts)} scene cuts")
 
     if backend == "auto":
         ok, reason = yolo_available()
@@ -179,7 +203,7 @@ def run_tracking(video, start, duration, fps, backend, classes, conf, imgsz, hei
         if not ok:
             print(f"YOLO backend unavailable ({reason}); using background subtraction.")
     source = (yolo_backend(clip, fps, classes, conf, imgsz) if backend == "yolo"
-              else bgsub_backend(clip, fps))
+              else bgsub_backend(clip, fps, cuts))
 
     raw_path = cache_dir(video) / "tracked_raw.mp4"
     writer = cv2.VideoWriter(str(raw_path), cv2.VideoWriter_fourcc(*"mp4v"), fps,
@@ -251,7 +275,10 @@ def main():
     ap = argparse.ArgumentParser(description="Track objects in a window of the video.")
     ap.add_argument("video")
     ap.add_argument("--start", type=float, default=0.0, help="window start (s)")
-    ap.add_argument("--duration", type=float, default=120.0, help="window length (s)")
+    ap.add_argument("--duration", type=float, default=None,
+                    help="window length (s); default 120, or the scene length with --scene")
+    ap.add_argument("--scene", type=int, default=None,
+                    help="track inside this scene index (sets --start and the window length)")
     ap.add_argument("--fps", type=float, default=5.0, help="analysis rate; higher is slower")
     ap.add_argument("--backend", choices=["auto", "yolo", "bgsub"], default="auto")
     ap.add_argument("--classes", type=int, nargs="+", default=[0], help="COCO class ids (0 = person)")
@@ -262,7 +289,15 @@ def main():
     args = ap.parse_args()
 
     info = probe(args.video)
-    duration = min(args.duration, max(1.0, info["duration_s"] - args.start))
+    if args.scene is not None:
+        scenes = detect_scenes_cached(args.video)
+        if not 0 <= args.scene < len(scenes):
+            raise SystemExit(f"--scene must be 0 to {len(scenes) - 1}")
+        sc = scenes[args.scene]
+        args.start = sc["start_s"]
+        length = sc["end_s"] - sc["start_s"]
+        args.duration = min(args.duration, length) if args.duration else length
+    duration = min(args.duration or 120.0, max(1.0, info["duration_s"] - args.start))
     backend, tracks, raw, bg, size = run_tracking(
         args.video, args.start, duration, args.fps, args.backend, args.classes,
         args.conf, args.imgsz, args.height, args.min_len)
