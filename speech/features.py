@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from watermark import save_figure
 
 SR = 16000
 N_MFCC = 13
@@ -97,7 +98,7 @@ def plot_features(y, sr, out_path, title=""):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    save_figure(fig, out_path, dpi=150)
     plt.close(fig)
     return out_path
 

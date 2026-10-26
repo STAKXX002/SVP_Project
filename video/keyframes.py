@@ -30,6 +30,7 @@ from tqdm import tqdm
 from video.common import OUT_ROOT, cache_dir, load_json, probe, resize_to_width, save_json, stem
 from video.motion import scene_scores, suppress_cuts
 from video.scenes import detect_scenes_cached
+from watermark import save_figure
 
 
 def sharpness(frame):
@@ -123,7 +124,7 @@ def contact_sheet(rows, top, out_path, title):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=130)
+    save_figure(fig, out_path, dpi=130)
     plt.close(fig)
     return out_path, len(chosen)
 

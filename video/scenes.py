@@ -27,6 +27,7 @@ import numpy as np
 from tqdm import tqdm
 
 from video.common import OUT_ROOT, cache_dir, iter_frames, load_json, probe, save_json, stem
+from watermark import save_figure
 
 
 def _detect_pyscenedetect(video, threshold):
@@ -128,7 +129,7 @@ def plot_timeline(scenes, duration, out_path):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    save_figure(fig, out_path, dpi=150)
     plt.close(fig)
     return out_path
 

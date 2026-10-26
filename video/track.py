@@ -43,6 +43,7 @@ from tqdm import tqdm
 
 from video.common import OUT_ROOT, cache_dir, iter_frames, probe, require_ffmpeg, save_json, stem
 from video.scenes import detect_scenes_cached
+from watermark import mark_frame, save_figure
 
 TRAIL = 40  # samples of trail drawn behind each box
 
@@ -187,7 +188,7 @@ def annotate(frame, dets, trails):
         cv2.rectangle(out, (int(x1), int(y1)), (int(x2), int(y2)), col, 2)
         cv2.putText(out, f"ID {tid}", (int(x1), max(15, int(y1) - 6)), cv2.FONT_HERSHEY_SIMPLEX,
                     0.6, col, 2)
-    return out
+    return mark_frame(out)
 
 
 def run_tracking(video, start, duration, fps, backend, classes, conf, imgsz, height, min_len):
@@ -257,7 +258,7 @@ def plot_trajectories(tracks, background, size, out_path, title):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=130)
+    save_figure(fig, out_path, dpi=130)
     plt.close(fig)
     return out_path
 

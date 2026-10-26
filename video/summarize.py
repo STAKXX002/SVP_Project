@@ -31,6 +31,7 @@ from video.common import (OUT_ROOT, cache_dir, has_audio, media_duration, probe,
                           save_json, stem)
 from video.motion import motion_cached, suppress_cuts
 from video.scenes import detect_scenes_cached
+from watermark import ffmpeg_drawtext
 
 
 def best_windows(times, values, scene, clip_len, step=0.5):
@@ -107,7 +108,7 @@ def cut_and_join(video, picks, out_path):
             part = tmp / f"part_{i:03d}.mp4"
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{p['start_s']:.3f}", "-i", str(video),
                    "-t", f"{p['end_s'] - p['start_s']:.3f}",
-                   "-vf", "scale=-2:'min(720,ih)',fps=30,format=yuv420p",
+                   "-vf", f"scale=-2:'min(720,ih)',fps=30,{ffmpeg_drawtext()},format=yuv420p",
                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
             cmd += ["-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2"] if audio else ["-an"]
             cmd.append(str(part))

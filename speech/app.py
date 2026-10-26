@@ -19,6 +19,7 @@ import gradio as gr
 
 from speech.dtw_score import format_report, score_pronunciation
 from speech.hmm_train import DEFAULT_MODEL, classify_file, load_bundle
+from watermark import TEXT
 
 REF_DIR = Path("data/reference")
 OUT_DIR = Path("outputs")
@@ -74,6 +75,7 @@ def build_app():
             "MFCC + DTW scoring and per-verse GMM-HMM recognition. "
             "Speaker-dependent, small vocabulary."
         )
+        gr.Markdown(f"<small>{TEXT}</small>")
         with gr.Tab("Pronunciation check"):
             with gr.Row():
                 ref_dd = gr.Dropdown(choices=refs, value=refs[0] if refs else None,

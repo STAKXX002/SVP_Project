@@ -27,6 +27,7 @@ import numpy as np
 from tqdm import tqdm
 
 from video.common import OUT_ROOT, cache_dir, iter_frames, load_json, probe, save_json, stem
+from watermark import save_figure
 
 FARNEBACK = dict(pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0)
 
@@ -122,7 +123,7 @@ def plot_motion(result, scenes, out_path, title=""):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    save_figure(fig, out_path, dpi=150)
     plt.close(fig)
     return out_path
 

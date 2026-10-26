@@ -31,6 +31,7 @@ from speech.dtw_score import (
     acoustic_score,
     pair_cost,
 )
+from watermark import save_figure
 
 
 def collect(ref, paths):
@@ -110,7 +111,7 @@ def main():
     ax.legend()
     fig.tight_layout()
     fig_path = out / "calibration.png"
-    fig.savefig(fig_path, dpi=150)
+    save_figure(fig, fig_path, dpi=150)
     plt.close(fig)
     print(f"figure: {fig_path}")
 

@@ -34,6 +34,7 @@ import numpy as np
 from hmmlearn.hmm import GMMHMM, GaussianHMM
 
 from speech.features import extract_mfcc, load_audio
+from watermark import save_figure
 
 logging.getLogger("hmmlearn").setLevel(logging.ERROR)  # silence per-iteration EM warnings
 
@@ -246,7 +247,7 @@ def plot_confusion(verses, cm, acc, out_path):
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    save_figure(fig, out_path, dpi=150)
     plt.close(fig)
     return out_path
 

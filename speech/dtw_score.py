@@ -31,6 +31,7 @@ from speech.features import (
     load_audio,
     spectral_summary,
 )
+from watermark import save_figure
 
 CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
 
@@ -205,7 +206,7 @@ def plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments, out_path, title="
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    save_figure(fig, out_path, dpi=150)
     plt.close(fig)
     return out_path
 
