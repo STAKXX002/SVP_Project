@@ -1,7 +1,7 @@
 """Visual styling layer for the Speech and Video Processing coursework demo.
 
-Minimal, aesthetic dark design with deep black surfaces and electric blue accents.
-Uses system and common sans fonts for offline reliability.
+Strict 2-color high-contrast aesthetic: Pure Black (#000000) and Pure Cyan (#00ffff).
+No gradients, no pastel tones, no multi-colored badges.
 """
 
 from __future__ import annotations
@@ -15,319 +15,271 @@ FORCE_DARK_JS = "() => { document.body.classList.add('dark'); }"
 
 
 def make_theme() -> gr.themes.Base:
-    """Create a minimal dark theme with black base and electric blue accents."""
+    """Create a minimal monochrome theme with black base and cyan accents."""
     base = gr.themes.Base(
-        primary_hue=gr.themes.colors.blue,
-        secondary_hue=gr.themes.colors.slate,
-        neutral_hue=gr.themes.colors.slate,
-        radius_size=gr.themes.sizes.radius_sm,
-        font=("Inter", "Segoe UI", "Roboto", "system-ui", "sans-serif"),
-        font_mono=("JetBrains Mono", "Consolas", "monospace"),
+        primary_hue=gr.themes.colors.cyan,
+        secondary_hue=gr.themes.colors.neutral,
+        neutral_hue=gr.themes.colors.neutral,
+        radius_size=gr.themes.sizes.radius_none,
     )
     return base.set(
-        body_background_fill="#030712",
-        body_background_fill_dark="#030712",
-        body_text_color="#e2e8f0",
-        body_text_color_dark="#e2e8f0",
-        block_background_fill="#070b14",
-        block_background_fill_dark="#070b14",
-        block_border_color="rgba(59, 130, 246, 0.20)",
-        block_border_color_dark="rgba(59, 130, 246, 0.20)",
+        body_background_fill="#000000",
+        body_background_fill_dark="#000000",
+        body_text_color="#ffffff",
+        body_text_color_dark="#ffffff",
+        block_background_fill="#000000",
+        block_background_fill_dark="#000000",
+        block_border_color="#00ffff",
+        block_border_color_dark="#00ffff",
         block_border_width="1px",
         block_shadow="none",
-        block_label_background_fill="#090e1a",
-        block_label_background_fill_dark="#090e1a",
-        block_label_text_color="#94a3b8",
-        block_label_text_color_dark="#94a3b8",
-        block_title_text_color="#f8fafc",
-        block_title_text_color_dark="#f8fafc",
-        input_background_fill="#050811",
-        input_background_fill_dark="#050811",
-        input_border_color="rgba(59, 130, 246, 0.25)",
-        input_border_color_dark="rgba(59, 130, 246, 0.25)",
-        button_primary_background_fill="#1d4ed8",
-        button_primary_background_fill_dark="#1d4ed8",
-        button_primary_background_fill_hover="#2563eb",
-        button_primary_background_fill_hover_dark="#2563eb",
-        button_primary_text_color="#ffffff",
-        button_primary_text_color_dark="#ffffff",
-        button_primary_border_color="#3b82f6",
-        button_primary_border_color_dark="#3b82f6",
-        button_secondary_background_fill="#090e1a",
-        button_secondary_background_fill_dark="#090e1a",
-        button_secondary_background_fill_hover="#0f172a",
-        button_secondary_background_fill_hover_dark="#0f172a",
-        button_secondary_text_color="#93c5fd",
-        button_secondary_text_color_dark="#93c5fd",
-        button_secondary_border_color="rgba(59, 130, 246, 0.30)",
-        button_secondary_border_color_dark="rgba(59, 130, 246, 0.30)",
+        block_label_background_fill="#000000",
+        block_label_background_fill_dark="#000000",
+        block_label_text_color="#00ffff",
+        block_label_text_color_dark="#00ffff",
+        block_title_text_color="#00ffff",
+        block_title_text_color_dark="#00ffff",
+        input_background_fill="#000000",
+        input_background_fill_dark="#000000",
+        input_border_color="#00ffff",
+        input_border_color_dark="#00ffff",
+        button_primary_background_fill="#000000",
+        button_primary_background_fill_dark="#000000",
+        button_primary_background_fill_hover="#00ffff",
+        button_primary_background_fill_hover_dark="#00ffff",
+        button_primary_text_color="#00ffff",
+        button_primary_text_color_dark="#00ffff",
+        button_primary_border_color="#00ffff",
+        button_primary_border_color_dark="#00ffff",
+        button_secondary_background_fill="#000000",
+        button_secondary_background_fill_dark="#000000",
+        button_secondary_background_fill_hover="#003333",
+        button_secondary_background_fill_hover_dark="#003333",
+        button_secondary_text_color="#ffffff",
+        button_secondary_text_color_dark="#ffffff",
+        button_secondary_border_color="#00ffff",
+        button_secondary_border_color_dark="#00ffff",
     )
 
 
 CSS = """
 :root {
-  --bg-dark: #030712;
-  --panel-bg: #070b14;
-  --panel-border: rgba(59, 130, 246, 0.22);
-  --accent-blue: #3b82f6;
-  --accent-light: #60a5fa;
-  --text-primary: #f8fafc;
-  --text-muted: #94a3b8;
+  --black: #000000;
+  --cyan: #00ffff;
+  --white: #ffffff;
+}
+
+* {
+  border-radius: 0px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
 
 body, .gradio-container {
-  background-color: #030712 !important;
-  color: #e2e8f0 !important;
-  max-width: 1320px !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace !important;
+  max-width: 1360px !important;
   margin: 0 auto !important;
 }
 
 footer { display: none !important; }
 
+/* Technical Minimal Header */
+.tech-header {
+  border: 1px solid #00ffff;
+  background: #000000;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+.tech-title {
+  color: #00ffff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tech-sub {
+  color: #ffffff;
+  font-size: 0.82rem;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+.tech-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 0.76rem;
+  color: #00ffff;
+}
+.tech-chips span {
+  border: 1px solid #00ffff;
+  padding: 2px 8px;
+  background: #000000;
+}
+
 /* Tabs */
 button[role="tab"] {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #94a3b8 !important;
-  border-bottom: 2px solid transparent !important;
-  transition: all 0.2s ease;
+  font-family: "JetBrains Mono", Consolas, monospace !important;
+  font-size: 0.86rem !important;
+  font-weight: 700 !important;
+  color: #00ffff !important;
+  background: #000000 !important;
+  border: 1px solid #00ffff !important;
+  margin-right: 4px !important;
+  padding: 7px 16px !important;
+  text-transform: uppercase !important;
+  transition: none !important;
 }
 button[role="tab"][aria-selected="true"] {
-  color: #60a5fa !important;
-  border-bottom: 2px solid #3b82f6 !important;
-  background: rgba(59, 130, 246, 0.08) !important;
+  color: #000000 !important;
+  background: #00ffff !important;
+  border: 1px solid #00ffff !important;
+}
+button[role="tab"]:hover {
+  background: #003333 !important;
+  color: #00ffff !important;
 }
 
 /* Buttons */
 button.primary {
-  transition: box-shadow 0.2s, transform 0.15s;
+  background: #000000 !important;
+  color: #00ffff !important;
+  border: 1px solid #00ffff !important;
+  font-family: "JetBrains Mono", Consolas, monospace !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  padding: 7px 14px !important;
+  transition: none !important;
 }
 button.primary:hover {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.45);
-  transform: translateY(-1px);
+  background: #00ffff !important;
+  color: #000000 !important;
+}
+button.secondary {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #00ffff !important;
+  font-family: "JetBrains Mono", Consolas, monospace !important;
+  padding: 7px 14px !important;
+  text-transform: uppercase !important;
+  transition: none !important;
+}
+button.secondary:hover {
+  background: #002222 !important;
+  color: #00ffff !important;
 }
 
-/* Hero Section */
-.hero {
-  position: relative;
-  overflow: hidden;
-  padding: 24px 28px;
-  border-radius: 12px;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  background: #070b14;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+/* Technical Cards */
+.tech-card {
+  border: 1px solid #00ffff;
+  background: #000000;
+  padding: 14px 18px;
+  margin-bottom: 8px;
 }
-.hero h1 {
-  margin: 0;
-  font-size: 1.85rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #f8fafc;
+.tech-label {
+  font-size: 0.72rem;
+  color: #00ffff;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.hero p {
-  margin: 6px 0 0;
-  color: #94a3b8;
-  font-size: 0.92rem;
-  max-width: 760px;
-}
-.chips {
+.tech-metric-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  align-items: baseline;
+  gap: 16px;
+  margin: 6px 0;
 }
-.chip {
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  color: #cbd5e1;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  background: #090e1a;
-}
-.chip b {
-  color: #60a5fa;
-  font-weight: 700;
-}
-.eq {
-  position: absolute;
-  right: 28px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 48px;
-  opacity: 0.85;
-}
-.eq i {
-  display: block;
-  width: 4px;
-  border-radius: 2px;
-  height: 100%;
-  background: #3b82f6;
-  transform-origin: bottom;
-  animation: eq 1.1s ease-in-out infinite;
-}
-@keyframes eq {
-  0%, 100% { transform: scaleY(0.25); }
-  50% { transform: scaleY(1.0); }
-}
-@media (max-width: 760px) { .eq { display: none; } }
-
-/* Score Ring */
-.score-wrap {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 16px 8px;
-  flex-wrap: wrap;
-}
-.ring {
-  --p: 0;
-  --c: #3b82f6;
-  width: 154px;
-  height: 154px;
-  border-radius: 50%;
-  flex: none;
-  display: grid;
-  place-items: center;
-  background: conic-gradient(var(--c) calc(var(--p) * 1%), rgba(255, 255, 255, 0.06) 0);
-  box-shadow: 0 0 28px -4px rgba(59, 130, 246, 0.35);
-}
-.ring-in {
-  width: 126px;
-  height: 126px;
-  border-radius: 50%;
-  background: #050811;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(59, 130, 246, 0.20);
-}
-.ring-num {
+.tech-metric-val {
   font-size: 2.2rem;
   font-weight: 800;
+  color: #00ffff;
   line-height: 1;
-  color: #f8fafc;
 }
-.ring-sub {
-  margin-top: 4px;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--c);
+.tech-metric-verdict {
+  font-size: 0.95rem;
   font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+  border: 1px solid #00ffff;
+  padding: 2px 8px;
+  text-transform: uppercase;
 }
-.score-meta {
+.tech-meta-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  color: #94a3b8;
-  font-size: 0.88rem;
+  gap: 4px;
+  font-size: 0.80rem;
+  color: #ffffff;
+  margin-top: 8px;
+  border-top: 1px solid #00ffff;
+  padding-top: 8px;
 }
-.score-meta b {
-  color: #f8fafc;
-}
-
-/* Verse Card */
-.verse-card {
-  padding: 18px 22px;
-  border-radius: 10px;
-  border: 1px solid rgba(59, 130, 246, 0.22);
-  border-left: 4px solid #3b82f6;
-  background: #070b14;
-}
-.verse-card .lab {
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #94a3b8;
-}
-.verse-card .val {
-  font-size: 2.3rem;
-  font-weight: 800;
-  color: #f8fafc;
-  line-height: 1.1;
-  margin: 4px 0 8px;
-}
-.badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-.badge.ok {
-  background: rgba(37, 99, 235, 0.15);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.40);
-}
-.badge.warn {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.40);
+.tech-meta-list b {
+  color: #00ffff;
 }
 
-/* Notice Cards */
+/* Notice */
 .notice {
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(59, 130, 246, 0.30);
-  background: #070b14;
-  color: #bfdbfe;
-  font-size: 0.88rem;
+  border: 1px solid #00ffff;
+  background: #000000;
+  color: #00ffff;
+  padding: 10px 14px;
+  font-size: 0.82rem;
 }
-.notice b {
-  color: #f8fafc;
-}
+.notice b { color: #ffffff; }
 .notice code {
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: #000000;
+  color: #00ffff;
+  border: 1px solid #00ffff;
+  padding: 1px 5px;
 }
 
-/* Matplotlib Figures */
+/* Figures */
 .fig img {
-  background: #030712 !important;
-  border: 1px solid rgba(59, 130, 246, 0.22) !important;
-  border-radius: 8px !important;
-  padding: 4px !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  background: #000000 !important;
+  border: 1px solid #00ffff !important;
+  padding: 0 !important;
+}
+
+/* Tables */
+table {
+  border: 1px solid #00ffff !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+  font-family: "JetBrains Mono", Consolas, monospace !important;
+}
+th {
+  background: #000000 !important;
+  color: #00ffff !important;
+  border-bottom: 1px solid #00ffff !important;
+  font-weight: 700 !important;
+}
+td {
+  border-bottom: 1px solid #003333 !important;
+}
+
+/* Form Controls */
+input, select, textarea {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #00ffff !important;
+  font-family: "JetBrains Mono", Consolas, monospace !important;
 }
 """
 
-_BAND_COLORS = (
-    ("excellent", "#38bdf8"),
-    ("good", "#60a5fa"),
-    ("needs", "#fbbf24"),
-    ("different", "#f87171"),
-)
-
-
-def _band_color(verdict: str) -> str:
-    v = verdict.lower()
-    for key, color in _BAND_COLORS:
-        if key in v:
-            return color
-    return "#38bdf8"
-
 
 def hero_html(title: str, subtitle: str, chips: List[Tuple[str, str]]) -> str:
-    """Render minimal dark hero section with animated equalizer bars and blue chips."""
-    bars = "".join(f'<i style="animation-delay:{i * 0.08:.2f}s"></i>' for i in range(14))
-    chip_html = "".join(
-        f'<span class="chip">{html.escape(k)} <b>{html.escape(v)}</b></span>'
+    """Render technical terminal header in black and cyan with zero animation."""
+    chip_spans = "".join(
+        f"<span>[ {html.escape(k).upper()}: {html.escape(v).upper()} ]</span>"
         for k, v in chips
     )
     return (
-        '<div class="hero">'
-        f'<div class="eq">{bars}</div>'
-        f"<h1>{html.escape(title)}</h1>"
-        f"<p>{html.escape(subtitle)}</p>"
-        f'<div class="chips">{chip_html}</div>'
+        '<div class="tech-header">'
+        f'<div class="tech-title">{html.escape(title).upper()} // TERMINAL</div>'
+        f'<div class="tech-sub">{html.escape(subtitle)}</div>'
+        f'<div class="tech-chips">{chip_spans}</div>'
         "</div>"
     )
 
@@ -341,28 +293,29 @@ def score_card_html(
     flagged_count: Optional[int] = None,
     **kwargs: Any,
 ) -> str:
-    """Render minimal circular score indicator with acoustic and duration details."""
+    """Render high-contrast rectangular readout for pronunciation alignment."""
     pct = max(0.0, min(100.0, float(similarity)))
-    color = _band_color(verdict)
 
     detail_lines = []
     if details:
         detail_lines.extend(details)
     else:
         if acoustic_cost is not None:
-            detail_lines.append(f"Acoustic alignment cost: <b>{acoustic_cost:.3f}</b>")
+            detail_lines.append(f"ACOUSTIC ALIGNMENT COST: <b>{acoustic_cost:.3f}</b>")
         if duration_ratio is not None:
-            detail_lines.append(f"Duration ratio (learner/ref): <b>{duration_ratio:.2f}x</b>")
+            detail_lines.append(f"DURATION RATIO: <b>{duration_ratio:.2f}x</b>")
         if flagged_count is not None:
-            detail_lines.append(f"Flagged mismatch segments: <b>{flagged_count}</b>")
+            detail_lines.append(f"FLAGGED MISMATCH SEGMENTS: <b>{flagged_count}</b>")
 
     meta_html = "".join(f"<div>{d}</div>" for d in detail_lines)
     return (
-        '<div class="score-wrap">'
-        f'<div class="ring" style="--p:{pct:.1f};--c:{color}">'
-        f'<div class="ring-in"><span class="ring-num">{pct:.0f}%</span>'
-        f'<span class="ring-sub">{html.escape(verdict)}</span></div></div>'
-        f'<div class="score-meta">{meta_html}</div>'
+        '<div class="tech-card">'
+        '<div class="tech-label">PRONUNCIATION SIMILARITY SCORE</div>'
+        '<div class="tech-metric-row">'
+        f'<div class="tech-metric-val">{pct:.0f}%</div>'
+        f'<div class="tech-metric-verdict">{html.escape(verdict).upper()}</div>'
+        "</div>"
+        f'<div class="tech-meta-list">{meta_html}</div>'
         "</div>"
     )
 
@@ -376,38 +329,38 @@ def verse_card_html(
     top_loglik: Optional[float] = None,
     **kwargs: Any,
 ) -> str:
-    """Render minimal verse classification card with status badge and likelihood margin."""
+    """Render high-contrast rectangular readout for verse classification."""
     val = predicted if predicted else verse
     is_warn = is_low_confidence or low_conf
-    badge = (
-        '<span class="badge warn">Low Confidence</span>'
-        if is_warn
-        else '<span class="badge ok">Confident</span>'
-    )
+    status_label = "LOW CONFIDENCE" if is_warn else "CONFIDENT"
     score_extra = (
-        f' &nbsp; <span class="chip">log-lik <b>{top_loglik:.1f}</b></span>'
+        f"<div>LOG-LIKELIHOOD: <b>{top_loglik:.1f}</b></div>"
         if top_loglik is not None
         else ""
     )
     return (
-        '<div class="verse-card">'
-        '<div class="lab">Predicted Verse</div>'
-        f'<div class="val">{html.escape(str(val))}</div>'
-        f'{badge} <span class="chip">margin <b>{margin:.1f}</b></span>{score_extra}'
+        '<div class="tech-card">'
+        '<div class="tech-label">VERSE RECOGNITION CLASSIFIER</div>'
+        f'<div class="tech-metric-row"><div class="tech-metric-val">{html.escape(str(val)).upper()}</div></div>'
+        '<div class="tech-meta-list">'
+        f"<div>CLASSIFIER STATUS: <b>{status_label}</b></div>"
+        f"<div>CONFIDENCE MARGIN: <b>{margin:.1f}</b></div>"
+        f"{score_extra}"
+        "</div>"
         "</div>"
     )
 
 
 def notice_html(title: str, body: str = "") -> str:
-    """Render informational notice card with subtle blue boundary."""
+    """Render technical notice card with cyan border."""
     body_part = f"<br>{body}" if body else ""
-    return f'<div class="notice"><b>{html.escape(title)}</b>{body_part}</div>'
+    return f'<div class="notice"><b>{html.escape(title).upper()}</b>{body_part}</div>'
 
 
 def stat_chips_html(pairs: List[Tuple[str, str]]) -> str:
-    """Render a container of blue chip badges."""
+    """Render technical chips."""
     inner = "".join(
-        f'<span class="chip">{html.escape(k)} <b>{html.escape(v)}</b></span>'
+        f"<span>[ {html.escape(k).upper()}: {html.escape(v).upper()} ]</span>"
         for k, v in pairs
     )
-    return f'<div class="chips">{inner}</div>'
+    return f'<div class="tech-chips">{inner}</div>'
