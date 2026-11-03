@@ -1,8 +1,8 @@
 """Gradio web application for Speech and Video Processing coursework demo.
 
-Refined aesthetic: Minimal obsidian black base (#030712), elevated dark surfaces
-(#080d16, #0d1422), and subtle cyan accents (rgba(56, 189, 248, 0.18)) with smooth
-transitions. Preserves rich scientific output colors in all figures and charts.
+Precision Studio Theme: Pure pitch black base (#000000), razor-sharp surfaces,
+and electric cyan (#00ffff) accents with high-contrast hardware segmented tabs.
+Native HTML5 video streaming with frame poster preloading and range request support.
 
 Entry points:
     python -m speech.app
@@ -38,6 +38,7 @@ try:
 except ImportError:
     cv2 = None
 
+from fastapi.staticfiles import StaticFiles
 import gradio as gr
 
 from speech.dtw_score import (
@@ -66,6 +67,7 @@ from speech.theme import (
     score_card_html,
     stat_chips_html,
     verse_card_html,
+    video_player_html,
 )
 
 # Project paths
@@ -79,14 +81,14 @@ FLAG_THRESHOLD = FLAG_COST
 LOW_CONFIDENCE_THRESHOLD = 500.0  # Log-likelihood margin threshold
 _bundle = None
 
-# Figure styling constants
-DARK_BG = "#030712"
-PANEL_BG = "#080d16"
-BORDER_RGBA = (0.22, 0.74, 0.97, 0.18)
-TEXT_WHITE = "#f8fafc"
+# Figure styling constants (Precision Monochrome & Cyan)
+DARK_BG = "#000000"
+PANEL_BG = "#050505"
+BORDER_RGBA = (0.0, 1.0, 1.0, 0.20)
+TEXT_WHITE = "#ffffff"
 TEXT_MUTED = "#94a3b8"
 ACCENT_BLUE = "#38bdf8"
-ACCENT_CYAN = "#00e5ff"
+ACCENT_CYAN = "#00ffff"
 ACCENT_RED = "#ef4444"
 ACCENT_AMBER = "#fbbf24"
 
@@ -267,7 +269,7 @@ def plot_dark_dtw_figure(
         C, wp, local = align(f_ref, f_lrn)
         frame_cost = per_frame_cost(wp, local, len(f_ref))
 
-        fig, axes = plt.subplots(2, 2, figsize=(10.5, 6.4), constrained_layout=True)
+        fig, axes = plt.subplots(2, 2, figsize=(10.5, 6.2), constrained_layout=True)
         fig.patch.set_facecolor(DARK_BG)
 
         for ax in axes.flat:
@@ -286,7 +288,7 @@ def plot_dark_dtw_figure(
             ax=axes[0, 0],
             cmap="magma",
         )
-        axes[0, 0].set_title("Reference Mel Spectrogram", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[0, 0].set_title("Reference Mel Spectrogram", color=TEXT_WHITE, fontsize=9.0, fontweight="bold")
         axes[0, 0].set_xlabel("Time (s)", color=TEXT_MUTED, fontsize=8)
         axes[0, 0].set_ylabel("Hz", color=TEXT_MUTED, fontsize=8)
 
@@ -300,7 +302,7 @@ def plot_dark_dtw_figure(
             ax=axes[0, 1],
             cmap="magma",
         )
-        axes[0, 1].set_title("Learner Mel Spectrogram", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[0, 1].set_title("Learner Mel Spectrogram", color=TEXT_WHITE, fontsize=9.0, fontweight="bold")
         axes[0, 1].set_xlabel("Time (s)", color=TEXT_MUTED, fontsize=8)
         axes[0, 1].set_ylabel("Hz", color=TEXT_MUTED, fontsize=8)
 
@@ -309,7 +311,7 @@ def plot_dark_dtw_figure(
         axes[1, 0].plot(wp[:, 1], wp[:, 0], color=ACCENT_CYAN, linewidth=1.8, label="DTW Path")
         axes[1, 0].set_xlabel("Learner Frame", color=TEXT_MUTED, fontsize=8)
         axes[1, 0].set_ylabel("Reference Frame", color=TEXT_MUTED, fontsize=8)
-        axes[1, 0].set_title("Cosine Cost Matrix and Warp Path", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 0].set_title("Cosine Cost Matrix and Warp Path", color=TEXT_WHITE, fontsize=9.0, fontweight="bold")
         axes[1, 0].legend(
             loc="upper left",
             facecolor=PANEL_BG,
@@ -339,7 +341,7 @@ def plot_dark_dtw_figure(
 
         axes[1, 1].set_xlabel("Reference Time (s)", color=TEXT_MUTED, fontsize=8)
         axes[1, 1].set_ylabel("Cosine Cost", color=TEXT_MUTED, fontsize=8)
-        axes[1, 1].set_title("Per-Frame Cost (Red: Flagged Mismatch)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 1].set_title("Per-Frame Cost (Red: Flagged Mismatch)", color=TEXT_WHITE, fontsize=9.0, fontweight="bold")
         axes[1, 1].set_ylim(0, max(0.8, float(np.max(frame_cost) * 1.15)))
         axes[1, 1].legend(
             loc="upper right",
@@ -348,7 +350,7 @@ def plot_dark_dtw_figure(
             labelcolor=TEXT_WHITE,
             fontsize=7.5,
         )
-        axes[1, 1].grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+        axes[1, 1].grid(True, linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
         plt.savefig(out_png, dpi=130, facecolor=DARK_BG)
         plt.close(fig)
@@ -366,7 +368,7 @@ def plot_data_confusion_matrix() -> Optional[str]:
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = DEMO_OUT_DIR / "verse_confusion_color.png"
 
-    fig, ax = plt.subplots(figsize=(5.6, 4.4), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(5.5, 4.2), constrained_layout=True)
     fig.patch.set_facecolor(DARK_BG)
     ax.set_facecolor(DARK_BG)
 
@@ -378,12 +380,12 @@ def plot_data_confusion_matrix() -> Optional[str]:
     ax.set_yticklabels(verses, color=TEXT_MUTED, fontsize=8)
     ax.set_xlabel("Predicted Verse", color=TEXT_WHITE, fontsize=8.5, labelpad=6)
     ax.set_ylabel("True Verse", color=TEXT_WHITE, fontsize=8.5, labelpad=6)
-    ax.set_title("HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+    ax.set_title("HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)", color=TEXT_WHITE, fontsize=9.0, fontweight="bold", pad=8)
 
     for i in range(len(verses)):
         for j in range(len(verses)):
             val = cm[i, j]
-            color = "#ffffff" if val > 4 else ("#38bdf8" if val > 0 else "#334155")
+            color = "#ffffff" if val > 4 else ("#00ffff" if val > 0 else "#27272a")
             weight = "bold" if val > 0 else "normal"
             ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight=weight, fontsize=9)
 
@@ -454,7 +456,7 @@ def plot_data_scene_timeline() -> Optional[str]:
         ax1.set_title(
             f"Scene Boundary Intervals ({len(scenes)} Scenes, Min 1.5 s Duration)",
             color=TEXT_WHITE,
-            fontsize=9.5,
+            fontsize=9.0,
             fontweight="bold",
             pad=6,
         )
@@ -467,8 +469,8 @@ def plot_data_scene_timeline() -> Optional[str]:
         durations = [sc["end_s"] - sc["start_s"] for sc in scenes]
         midpoints = [(sc["start_s"] + sc["end_s"]) / 120.0 for sc in scenes]
 
-        ax2.plot(midpoints, durations, color=ACCENT_BLUE, linewidth=1.3, label="Scene Duration (s)")
-        ax2.fill_between(midpoints, durations, color=ACCENT_BLUE, alpha=0.15)
+        ax2.plot(midpoints, durations, color=ACCENT_CYAN, linewidth=1.3, label="Scene Duration (s)")
+        ax2.fill_between(midpoints, durations, color=ACCENT_CYAN, alpha=0.15)
         ax2.axhline(1.5, color=ACCENT_RED, linestyle="--", linewidth=1.2, label="1.5 s Minimum Cutoff")
         ax2.set_xlim(0, duration / 60.0)
         ax2.set_ylim(0, max(durations) * 1.15)
@@ -484,7 +486,7 @@ def plot_data_scene_timeline() -> Optional[str]:
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
         ax2.tick_params(colors=TEXT_MUTED, length=2.5)
-        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
@@ -546,15 +548,15 @@ def plot_data_motion_analysis() -> Optional[str]:
                 ax1.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
             else:
                 ax1.imshow(norm_heat, cmap="inferno")
-        ax1.set_title("Accumulated Optical Flow (Inferno Overlay)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
+        ax1.set_title("Accumulated Optical Flow (Inferno Overlay)", color=TEXT_WHITE, fontsize=9.0, fontweight="bold", pad=6)
         ax1.axis("off")
 
         # Right: Flow Magnitude
         ax2 = fig.add_subplot(gs[1])
         ax2.set_facecolor(DARK_BG)
         t_min = times / 60.0
-        ax2.plot(t_min, values, color=ACCENT_BLUE, linewidth=1.1, label="Optical Flow Magnitude")
-        ax2.fill_between(t_min, values, color=ACCENT_BLUE, alpha=0.18)
+        ax2.plot(t_min, values, color=ACCENT_CYAN, linewidth=1.1, label="Optical Flow Magnitude")
+        ax2.fill_between(t_min, values, color=ACCENT_CYAN, alpha=0.18)
 
         y_max = float(values.max()) * 1.08 if len(values) else 1.0
         ax2.set_ylim(0, y_max)
@@ -566,7 +568,7 @@ def plot_data_motion_analysis() -> Optional[str]:
 
         ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8)
         ax2.set_ylabel("Mean Flow (px/sample)", color=TEXT_MUTED, fontsize=8)
-        ax2.set_title("Global Motion Magnitude Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
+        ax2.set_title("Global Motion Magnitude Over Time", color=TEXT_WHITE, fontsize=9.0, fontweight="bold", pad=6)
         ax2.legend(
             loc="upper right",
             facecolor=PANEL_BG,
@@ -577,7 +579,7 @@ def plot_data_motion_analysis() -> Optional[str]:
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
         ax2.tick_params(colors=TEXT_MUTED, length=2.5)
-        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
@@ -646,7 +648,7 @@ def plot_data_trajectories() -> Optional[str]:
 
         ax1.set_xlabel("Frame X (px)", color=TEXT_MUTED, fontsize=8)
         ax1.set_ylabel("Frame Y (px)", color=TEXT_MUTED, fontsize=8)
-        ax1.set_title("Spatial Trajectory Path (1405 s to 1410 s)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
+        ax1.set_title("Spatial Trajectory Path (1405 s to 1410 s)", color=TEXT_WHITE, fontsize=9.0, fontweight="bold", pad=6)
         ax1.legend(
             loc="lower left",
             facecolor=PANEL_BG,
@@ -657,7 +659,7 @@ def plot_data_trajectories() -> Optional[str]:
         for spine in ax1.spines.values():
             spine.set_color(BORDER_RGBA)
         ax1.tick_params(colors=TEXT_MUTED, length=2.5)
-        ax1.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+        ax1.grid(True, linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
         # Right: Velocity Kinematics
         ax2.set_facecolor(DARK_BG)
@@ -666,13 +668,13 @@ def plot_data_trajectories() -> Optional[str]:
         velocities = diffs / dt
         vel_times = rel_times[1:]
 
-        ax2.plot(vel_times, velocities, color=ACCENT_BLUE, linewidth=1.5, marker="o", markersize=3.5, markerfacecolor=PANEL_BG, markeredgecolor=ACCENT_BLUE)
-        ax2.fill_between(vel_times, velocities, color=ACCENT_BLUE, alpha=0.18)
+        ax2.plot(vel_times, velocities, color=ACCENT_CYAN, linewidth=1.5, marker="o", markersize=3.5, markerfacecolor=PANEL_BG, markeredgecolor=ACCENT_CYAN)
+        ax2.fill_between(vel_times, velocities, color=ACCENT_CYAN, alpha=0.18)
         ax2.axhline(np.mean(velocities), color=TEXT_WHITE, linestyle=":", label=f"Mean ({np.mean(velocities):.1f} px/s)")
 
         ax2.set_xlabel("Elapsed Time (s)", color=TEXT_MUTED, fontsize=8)
         ax2.set_ylabel("Speed (px/s)", color=TEXT_MUTED, fontsize=8)
-        ax2.set_title("Track Kinematics Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
+        ax2.set_title("Track Kinematics Over Time", color=TEXT_WHITE, fontsize=9.0, fontweight="bold", pad=6)
         ax2.legend(
             loc="upper right",
             facecolor=PANEL_BG,
@@ -683,7 +685,7 @@ def plot_data_trajectories() -> Optional[str]:
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
         ax2.tick_params(colors=TEXT_MUTED, length=2.5)
-        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
@@ -708,7 +710,7 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
 
     max_v = max(vals)
     rel_vals = [v - max_v for v in vals]
-    bar_colors = ["#38bdf8", "#0284c7", "#0369a1"][:len(top3)]
+    bar_colors = ["#00ffff", "#0284c7", "#0369a1"][:len(top3)]
 
     bars = ax.barh(labels[::-1], rel_vals[::-1], color=bar_colors[::-1], height=0.48)
     ax.set_xlabel("Relative Log-Likelihood", color=TEXT_MUTED, fontsize=8)
@@ -719,7 +721,7 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
         spine.set_color(BORDER_RGBA)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(True, axis="x", linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+    ax.grid(True, axis="x", linestyle=":", alpha=0.2, color=ACCENT_CYAN)
 
     for bar, original_val in zip(bars, vals[::-1]):
         w = bar.get_width()
@@ -891,8 +893,10 @@ def load_cached_video_assets():
         "timeline": plot_data_scene_timeline(),
         "motion_map": plot_data_motion_analysis(),
         "tracked_video": None,
+        "tracked_poster": "/outputs/input_tracked_poster.jpg" if (OUTPUTS_DIR / "input_tracked_poster.jpg").exists() else "",
         "trajectories": plot_data_trajectories(),
         "summary_video": None,
+        "summary_poster": "/outputs/input_summary_poster.jpg" if (OUTPUTS_DIR / "input_summary_poster.jpg").exists() else "",
         "keyframes": [],
         "scene_motion_maps": [],
     }
@@ -905,12 +909,8 @@ def load_cached_video_assets():
     ]
     for sc in sum_candidates:
         if sc.exists() and sc.stat().st_size > 0:
-            assets["summary_video"] = ensure_faststart_video(sc)
+            assets["summary_video"] = f"/outputs/{sc.name}"
             break
-    if not assets["summary_video"]:
-        sum_glob = list(OUTPUTS_DIR.glob("*summary*.mp4"))
-        if sum_glob:
-            assets["summary_video"] = ensure_faststart_video(sum_glob[0])
 
     # Discover faststart tracked video
     tr_candidates = [
@@ -920,12 +920,8 @@ def load_cached_video_assets():
     ]
     for tc in tr_candidates:
         if tc.exists() and tc.stat().st_size > 0:
-            assets["tracked_video"] = ensure_faststart_video(tc)
+            assets["tracked_video"] = f"/outputs/{tc.name}"
             break
-    if not assets["tracked_video"]:
-        tr_glob = list(OUTPUTS_DIR.glob("*tracked*.mp4"))
-        if tr_glob:
-            assets["tracked_video"] = ensure_faststart_video(tr_glob[0])
 
     kf_files = sorted(list(OUTPUTS_DIR.glob("*keyframe*.png")) + list(OUTPUTS_DIR.glob("keyframes/*.png")))
     assets["keyframes"] = [str(p) for p in kf_files]
@@ -974,32 +970,32 @@ def get_hero_stats() -> Tuple[int, int, str]:
 
 
 def build_app() -> gr.Blocks:
-    """Build the styled Gradio tabbed application."""
+    """Build the precision studio Gradio tabbed application."""
     ref_words = get_reference_words()
     default_word = ref_words[0] if ref_words else "krishna"
     verse_count, scene_count, duration_str = get_hero_stats()
 
-    demo = gr.Blocks(title="Speech and Video Processing")
+    demo = gr.Blocks(title="Speech and Video Processing // Studio")
 
     with demo:
         gr.HTML(
             hero_html(
-                title="Speech and Video Processing",
-                subtitle="Discrete acoustic modeling, DTW alignment, and video motion intelligence",
+                title="SVP Studio Pro",
+                subtitle="Discrete Acoustic Modeling, DTW Morphometrics, and Video Motion Intelligence",
                 chips=[
-                    ("HMM Models", f"{verse_count} Verses"),
-                    ("DTW Alignment", "Cosine Distance"),
-                    ("Scene Cuts", f"{scene_count} Boundaries"),
-                    ("Video Stream", duration_str),
+                    ("HMM", f"{verse_count} Verses"),
+                    ("DTW", "Cosine"),
+                    ("Scenes", f"{scene_count} Cuts"),
+                    ("Stream", duration_str),
                 ],
             )
         )
 
         with gr.Tabs():
             # -------------------------------------------------------------
-            # Tab 1: Pronunciation Assessment
+            # Tab 1: 01 Pronunciation Assessment
             # -------------------------------------------------------------
-            with gr.TabItem("Pronunciation"):
+            with gr.TabItem("01 Pronunciation"):
                 with gr.Row():
                     # Left column: Controls and inputs (scale=5)
                     with gr.Column(scale=5):
@@ -1008,7 +1004,7 @@ def build_app() -> gr.Blocks:
                             ref_dropdown = gr.Dropdown(
                                 choices=ref_words,
                                 value=default_word,
-                                label="Reference Template Word",
+                                label="Reference Word Template",
                                 scale=1,
                             )
                             sample_preset_dropdown = gr.Dropdown(
@@ -1042,10 +1038,10 @@ def build_app() -> gr.Blocks:
                             label="Learner Audio Stream",
                         )
                         gr.HTML(
-                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px;'>"
-                            "Microphone access: open in browser via "
-                            "<a href='http://localhost:7861' target='_blank' style='color:#38bdf8; text-decoration:none;'>http://localhost:7861</a> "
-                            "to grant browser media permissions. Or select from Quick Preset Audio above."
+                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px; font-family:monospace;'>"
+                            "Browser microphone: open via "
+                            "<a href='http://localhost:7861' target='_blank' style='color:#00ffff; text-decoration:none;'>http://localhost:7861</a> "
+                            "to enable media permissions. Or select from Quick Preset Audio."
                             "</div>"
                         )
 
@@ -1117,9 +1113,9 @@ def build_app() -> gr.Blocks:
                 )
 
             # -------------------------------------------------------------
-            # Tab 2: Verse Recognition
+            # Tab 2: 02 Verse Recognition
             # -------------------------------------------------------------
-            with gr.TabItem("Verse Recognition"):
+            with gr.TabItem("02 Verse Recognition"):
                 with gr.Row():
                     # Left column: Recitation inputs (scale=5)
                     with gr.Column(scale=5):
@@ -1144,10 +1140,10 @@ def build_app() -> gr.Blocks:
                             label="Recitation Audio Stream",
                         )
                         gr.HTML(
-                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px;'>"
-                            "Microphone access: open in browser via "
-                            "<a href='http://localhost:7861' target='_blank' style='color:#38bdf8; text-decoration:none;'>http://localhost:7861</a> "
-                            "to grant browser media permissions. Or select from Quick Preset Recitation Loader above."
+                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px; font-family:monospace;'>"
+                            "Browser microphone: open via "
+                            "<a href='http://localhost:7861' target='_blank' style='color:#00ffff; text-decoration:none;'>http://localhost:7861</a> "
+                            "to enable media permissions. Or select from Quick Preset Recitation Loader."
                             "</div>"
                         )
 
@@ -1228,23 +1224,24 @@ def build_app() -> gr.Blocks:
                 )
 
             # -------------------------------------------------------------
-            # Tab 3: Video Analysis
+            # Tab 3: 03 Video Analytics
             # -------------------------------------------------------------
-            with gr.TabItem("Video Analysis"):
+            with gr.TabItem("03 Video Analytics"):
                 video_assets = load_cached_video_assets()
 
-                # Row 1: Dual video players side-by-side
+                # Row 1: Dual Native HTML5 video players side-by-side with live poster frames
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("##### Motion-Weighted Summary Video (60 to 90 s)")
+                        gr.Markdown("##### Motion-Weighted Video Summary (60 to 90 s)")
                         if video_assets["summary_video"]:
-                            gr.Video(
-                                value=video_assets["summary_video"],
-                                label="Chronological Summary (H.264 Faststart)",
-                                height=260,
-                                autoplay=False,
-                                interactive=False,
-                                buttons=["download"],
+                            gr.HTML(
+                                video_player_html(
+                                    video_url=video_assets["summary_video"],
+                                    poster_url=video_assets["summary_poster"],
+                                    title="Chronological Motion Summary",
+                                    tag="76.2 s / H.264 Faststart",
+                                    footer_info="Source: 30:00 (53,947 frames)",
+                                )
                             )
                         else:
                             gr.HTML(
@@ -1257,13 +1254,14 @@ def build_app() -> gr.Blocks:
                     with gr.Column(scale=1):
                         gr.Markdown("##### Pedestrian Tracking Demo (YOLOv8n + ByteTrack)")
                         if video_assets["tracked_video"]:
-                            gr.Video(
-                                value=video_assets["tracked_video"],
-                                label="Tracked Video (Window: 1405 s to 1410 s, H.264 Faststart)",
-                                height=260,
-                                autoplay=False,
-                                interactive=False,
-                                buttons=["download"],
+                            gr.HTML(
+                                video_player_html(
+                                    video_url=video_assets["tracked_video"],
+                                    poster_url=video_assets["tracked_poster"],
+                                    title="YOLOv8n + ByteTrack Demo",
+                                    tag="5.0 s Window (1405 s - 1410 s)",
+                                    footer_info="Detections: Track ID #1 (>= 1.0 s)",
+                                )
                             )
                         else:
                             gr.HTML(
@@ -1369,25 +1367,25 @@ def build_app() -> gr.Blocks:
                         )
 
             # -------------------------------------------------------------
-            # Tab 4: About & Limitations
+            # Tab 4: 04 System Architecture
             # -------------------------------------------------------------
-            with gr.TabItem("About & Limitations"):
+            with gr.TabItem("04 System Architecture"):
                 with gr.Row():
                     with gr.Column(scale=1):
                         gr.HTML(
                             """
-                            <div class="about-card">
-                              <div class="about-card-title">Speech Processing Architecture</div>
+                            <div class="spec-card">
+                              <div class="spec-card-title">Speech Processing Subsystem</div>
                               <p>End-to-end discrete acoustic feature extraction and alignment pipeline.</p>
                               <ul>
-                                <li><b>Signal Conditioning:</b> 16,000 Hz sampling, zero-phase 5th-order Butterworth high-pass filter (80 Hz cut-off) to remove low-frequency plosives and DC bias, and amplitude normalization by the 99.5th percentile to suppress transient clicks.</li>
-                                <li><b>Feature Representation:</b> 13 Mel-Frequency Cepstral Coefficients (MFCCs) augmented by first-order delta coefficients, yielding a 26-dimensional acoustic vector per 25 ms frame (10 ms hop size).</li>
+                                <li><b>Signal Conditioning:</b> 16,000 Hz sampling, zero-phase 5th-order Butterworth high-pass filter (80 Hz cut-off) to suppress low-frequency plosives and DC bias; amplitude normalized by the 99.5th percentile to eliminate transient clicks.</li>
+                                <li><b>Feature Representation:</b> 13 Mel-Frequency Cepstral Coefficients (MFCCs) augmented by first-order delta coefficients (26-dimensional acoustic vector per 25 ms frame, 10 ms hop size).</li>
                                 <li><b>Pronunciation Assessment:</b> Dynamic Time Warping (DTW) with cosine distance. Blends 85% acoustic alignment and 15% duration ratio, subtracting localized mismatch penalties when consecutive frames (>= 30 ms) exceed threshold.</li>
                                 <li><b>Dual Calibration:</b> Strict Benchmark mode for single-speaker comparison; Adaptive Cross-Speaker mode to normalize vocal tract length differences and microphone frequency variations.</li>
                               </ul>
                             </div>
-                            <div class="about-card">
-                              <div class="about-card-title">Continuous Density HMM Models</div>
+                            <div class="spec-card">
+                              <div class="spec-card-title">Continuous Density HMM Models</div>
                               <p>Recitation recognition across 9 sacred Sanskrit verses from the Bhagavad Gita.</p>
                               <ul>
                                 <li><b>Model Topology:</b> Left-to-right Gaussian Hidden Markov Models without skip transitions, enforcing monotonic phoneme sequence progression.</li>
@@ -1402,8 +1400,8 @@ def build_app() -> gr.Blocks:
                     with gr.Column(scale=1):
                         gr.HTML(
                             """
-                            <div class="about-card">
-                              <div class="about-card-title">Video Intelligence Subsystem</div>
+                            <div class="spec-card">
+                              <div class="spec-card-title">Video Intelligence Subsystem</div>
                               <p>Computer vision analytics workflow for standard-definition video streams.</p>
                               <ul>
                                 <li><b>Scene Detection:</b> PySceneDetect adaptive thresholding with 1.5 s minimum duration filtering and 0.85 HSV histogram boundary correlation merging to prevent over-segmentation.</li>
@@ -1413,8 +1411,8 @@ def build_app() -> gr.Blocks:
                                 <li><b>Motion Summarization:</b> Sub-scene candidate scoring based on optical flow density, concatenated chronologically into a 60 to 90 s summary.</li>
                               </ul>
                             </div>
-                            <div class="about-card">
-                              <div class="about-card-title">Methodological Assumptions and Limitations</div>
+                            <div class="spec-card">
+                              <div class="spec-card-title">Methodological Assumptions and Limitations</div>
                               <p>Known operational boundaries and engineering constraints.</p>
                               <ul>
                                 <li><b>Speaker Dependence:</b> Continuous HMM models require speaker-consistent acoustic distributions; cross-speaker recitations exhibit degraded likelihoods without adaptation.</li>
@@ -1425,6 +1423,12 @@ def build_app() -> gr.Blocks:
                             </div>
                             """
                         )
+
+    # Mount static files route on FastAPI app AFTER with demo: context exits
+    try:
+        demo.app.mount("/outputs", StaticFiles(directory=str(OUTPUTS_DIR)), name="outputs")
+    except Exception as exc:
+        print(f"Notice: Failed to mount /outputs: {exc}")
 
     return demo
 
@@ -1462,7 +1466,7 @@ def main():
             server_name="127.0.0.1",
             server_port=selected_port,
             share=args.share,
-            allowed_paths=[str(BASE_DIR)],
+            allowed_paths=[str(BASE_DIR), str(OUTPUTS_DIR)],
             theme=make_theme(),
             css=CSS,
             js=FORCE_DARK_JS,
@@ -1472,7 +1476,7 @@ def main():
             server_name="127.0.0.1",
             server_port=selected_port,
             share=args.share,
-            allowed_paths=[str(BASE_DIR)],
+            allowed_paths=[str(BASE_DIR), str(OUTPUTS_DIR)],
         )
 
 
