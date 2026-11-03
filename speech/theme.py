@@ -1,130 +1,307 @@
-"""Visual layer for the SVP demo app: Gradio theme, CSS, and HTML card helpers.
+"""Visual styling layer for the Speech and Video Processing coursework demo.
 
-Pure presentation. Contains no data processing. Uses system fonts only so the
-UI renders identically without internet access at the demo venue.
+Minimal, aesthetic dark design with deep black surfaces and electric blue accents.
+Uses system and common sans fonts for offline reliability.
 """
+
 from __future__ import annotations
 
 import html
+from typing import Any, List, Optional, Tuple
 
 import gradio as gr
 
 FORCE_DARK_JS = "() => { document.body.classList.add('dark'); }"
 
 
-def make_theme():
+def make_theme() -> gr.themes.Base:
+    """Create a minimal dark theme with black base and electric blue accents."""
     base = gr.themes.Base(
-        primary_hue=gr.themes.colors.cyan,
-        secondary_hue=gr.themes.colors.violet,
+        primary_hue=gr.themes.colors.blue,
+        secondary_hue=gr.themes.colors.slate,
         neutral_hue=gr.themes.colors.slate,
-        radius_size=gr.themes.sizes.radius_lg,
-        font=("Inter", "Segoe UI", "Roboto", "Arial", "sans-serif"),
+        radius_size=gr.themes.sizes.radius_sm,
+        font=("Inter", "Segoe UI", "Roboto", "system-ui", "sans-serif"),
         font_mono=("JetBrains Mono", "Consolas", "monospace"),
     )
     return base.set(
-        body_background_fill="#0b1020",
-        body_background_fill_dark="#0b1020",
-        body_text_color_dark="#e6edf7",
-        block_background_fill_dark="rgba(255,255,255,0.04)",
-        block_border_color_dark="rgba(255,255,255,0.10)",
+        body_background_fill="#030712",
+        body_background_fill_dark="#030712",
+        body_text_color="#e2e8f0",
+        body_text_color_dark="#e2e8f0",
+        block_background_fill="#070b14",
+        block_background_fill_dark="#070b14",
+        block_border_color="rgba(59, 130, 246, 0.20)",
+        block_border_color_dark="rgba(59, 130, 246, 0.20)",
         block_border_width="1px",
-        block_shadow="0 8px 30px rgba(0,0,0,0.35)",
-        block_label_background_fill_dark="rgba(255,255,255,0.06)",
-        block_title_text_color_dark="#9fb3d1",
-        input_background_fill_dark="rgba(8,12,26,0.85)",
-        input_border_color_dark="rgba(255,255,255,0.12)",
-        button_primary_background_fill="linear-gradient(90deg,#22d3ee,#8b5cf6)",
-        button_primary_background_fill_dark="linear-gradient(90deg,#22d3ee,#8b5cf6)",
-        button_primary_background_fill_hover="linear-gradient(90deg,#67e8f9,#a78bfa)",
-        button_primary_background_fill_hover_dark="linear-gradient(90deg,#67e8f9,#a78bfa)",
-        button_primary_text_color="#06101f",
-        button_primary_text_color_dark="#06101f",
-        button_secondary_background_fill_dark="rgba(255,255,255,0.06)",
-        button_secondary_border_color_dark="rgba(255,255,255,0.14)",
+        block_shadow="none",
+        block_label_background_fill="#090e1a",
+        block_label_background_fill_dark="#090e1a",
+        block_label_text_color="#94a3b8",
+        block_label_text_color_dark="#94a3b8",
+        block_title_text_color="#f8fafc",
+        block_title_text_color_dark="#f8fafc",
+        input_background_fill="#050811",
+        input_background_fill_dark="#050811",
+        input_border_color="rgba(59, 130, 246, 0.25)",
+        input_border_color_dark="rgba(59, 130, 246, 0.25)",
+        button_primary_background_fill="#1d4ed8",
+        button_primary_background_fill_dark="#1d4ed8",
+        button_primary_background_fill_hover="#2563eb",
+        button_primary_background_fill_hover_dark="#2563eb",
+        button_primary_text_color="#ffffff",
+        button_primary_text_color_dark="#ffffff",
+        button_primary_border_color="#3b82f6",
+        button_primary_border_color_dark="#3b82f6",
+        button_secondary_background_fill="#090e1a",
+        button_secondary_background_fill_dark="#090e1a",
+        button_secondary_background_fill_hover="#0f172a",
+        button_secondary_background_fill_hover_dark="#0f172a",
+        button_secondary_text_color="#93c5fd",
+        button_secondary_text_color_dark="#93c5fd",
+        button_secondary_border_color="rgba(59, 130, 246, 0.30)",
+        button_secondary_border_color_dark="rgba(59, 130, 246, 0.30)",
     )
 
 
 CSS = """
-:root{
-  --bg:#0b1020; --line:rgba(255,255,255,.10); --muted:#9fb3d1;
-  --cyan:#22d3ee; --violet:#8b5cf6; --green:#34d399; --amber:#fbbf24; --red:#f87171;
+:root {
+  --bg-dark: #030712;
+  --panel-bg: #070b14;
+  --panel-border: rgba(59, 130, 246, 0.22);
+  --accent-blue: #3b82f6;
+  --accent-light: #60a5fa;
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
 }
-.gradio-container{
-  max-width:1280px !important; margin:0 auto !important;
-  background:
-    radial-gradient(1100px 560px at 8% -10%, rgba(34,211,238,.16), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(139,92,246,.18), transparent 55%),
-    var(--bg) !important;
+
+body, .gradio-container {
+  background-color: #030712 !important;
+  color: #e2e8f0 !important;
+  max-width: 1320px !important;
+  margin: 0 auto !important;
 }
-footer{display:none !important}
 
-/* hero */
-.hero{position:relative;overflow:hidden;padding:28px 32px;border-radius:20px;
-  border:1px solid var(--line);
-  background:linear-gradient(135deg,rgba(34,211,238,.10),rgba(139,92,246,.14));}
-.hero h1{margin:0;font-size:2.1rem;font-weight:800;letter-spacing:-.02em;
-  background:linear-gradient(90deg,#e6edf7,#67e8f9 50%,#c4b5fd);
-  -webkit-background-clip:text;background-clip:text;color:transparent;}
-.hero p{margin:.45rem 0 0;color:var(--muted);max-width:720px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-.chip{padding:4px 12px;border-radius:999px;font-size:.78rem;color:#cfe3ff;
-  border:1px solid var(--line);background:rgba(255,255,255,.05)}
-.chip b{color:var(--cyan);font-weight:700}
-.eq{position:absolute;right:32px;top:50%;transform:translateY(-50%);
-  display:flex;align-items:flex-end;gap:5px;height:64px;opacity:.9}
-.eq i{display:block;width:6px;border-radius:3px;height:100%;
-  background:linear-gradient(180deg,#22d3ee,#8b5cf6);
-  transform-origin:bottom;animation:eq 1.1s ease-in-out infinite}
-@keyframes eq{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}
-@media (max-width:760px){.eq{display:none}}
-@media (prefers-reduced-motion:reduce){.eq i{animation:none;transform:scaleY(.6)}}
+footer { display: none !important; }
 
-/* tabs */
-button[role="tab"]{font-weight:600;font-size:.98rem}
-button[role="tab"][aria-selected="true"]{
-  color:var(--cyan) !important;border-bottom:2px solid var(--cyan) !important;}
+/* Tabs */
+button[role="tab"] {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #94a3b8 !important;
+  border-bottom: 2px solid transparent !important;
+  transition: all 0.2s ease;
+}
+button[role="tab"][aria-selected="true"] {
+  color: #60a5fa !important;
+  border-bottom: 2px solid #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+}
 
-/* buttons */
-button.primary{transition:box-shadow .2s, transform .15s}
-button.primary:hover{box-shadow:0 0 26px rgba(34,211,238,.45);transform:translateY(-1px)}
+/* Buttons */
+button.primary {
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+button.primary:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.45);
+  transform: translateY(-1px);
+}
 
-/* score ring */
-.score-wrap{display:flex;align-items:center;gap:28px;padding:18px 8px;flex-wrap:wrap}
-.ring{--p:0;--c:#22d3ee;width:176px;height:176px;border-radius:50%;flex:none;
-  display:grid;place-items:center;
-  background:conic-gradient(var(--c) calc(var(--p) * 1%), rgba(255,255,255,.08) 0);
-  box-shadow:0 0 40px -8px var(--c);}
-.ring-in{width:146px;height:146px;border-radius:50%;background:#0b1020;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  border:1px solid var(--line);}
-.ring-num{font-size:2.5rem;font-weight:800;line-height:1;color:#fff}
-.ring-sub{margin-top:6px;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--c)}
-.score-meta{display:flex;flex-direction:column;gap:8px;color:var(--muted);font-size:.92rem}
-.score-meta b{color:#e6edf7}
+/* Hero Section */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 24px 28px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: #070b14;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+.hero h1 {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+.hero p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 0.92rem;
+  max-width: 760px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chip {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: #090e1a;
+}
+.chip b {
+  color: #60a5fa;
+  font-weight: 700;
+}
+.eq {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 48px;
+  opacity: 0.85;
+}
+.eq i {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  height: 100%;
+  background: #3b82f6;
+  transform-origin: bottom;
+  animation: eq 1.1s ease-in-out infinite;
+}
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1.0); }
+}
+@media (max-width: 760px) { .eq { display: none; } }
 
-/* verse card */
-.verse-card{padding:20px 24px;border-radius:16px;border:1px solid var(--line);
-  background:linear-gradient(135deg,rgba(139,92,246,.14),rgba(34,211,238,.08));}
-.verse-card .lab{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.verse-card .val{font-size:2.6rem;font-weight:800;color:#fff;line-height:1.1}
-.badge{display:inline-block;margin-top:10px;padding:4px 12px;border-radius:999px;
-  font-size:.8rem;font-weight:600}
-.badge.ok{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.4)}
-.badge.warn{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.4)}
+/* Score Ring */
+.score-wrap {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 8px;
+  flex-wrap: wrap;
+}
+.ring {
+  --p: 0;
+  --c: #3b82f6;
+  width: 154px;
+  height: 154px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), rgba(255, 255, 255, 0.06) 0);
+  box-shadow: 0 0 28px -4px rgba(59, 130, 246, 0.35);
+}
+.ring-in {
+  width: 126px;
+  height: 126px;
+  border-radius: 50%;
+  background: #050811;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(59, 130, 246, 0.20);
+}
+.ring-num {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #f8fafc;
+}
+.ring-sub {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c);
+  font-weight: 700;
+}
+.score-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+.score-meta b {
+  color: #f8fafc;
+}
 
-/* notice */
-.notice{padding:14px 18px;border-radius:14px;border:1px dashed rgba(251,191,36,.5);
-  background:rgba(251,191,36,.06);color:#fde68a}
-.notice b{color:#fff}
-.notice code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px}
+/* Verse Card */
+.verse-card {
+  padding: 18px 22px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-left: 4px solid #3b82f6;
+  background: #070b14;
+}
+.verse-card .lab {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.verse-card .val {
+  font-size: 2.3rem;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.1;
+  margin: 4px 0 8px;
+}
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.badge.ok {
+  background: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.40);
+}
+.badge.warn {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.40);
+}
 
-/* matplotlib figures are white; present them as light cards */
-.fig img{background:#fff;border-radius:12px;padding:6px}
+/* Notice Cards */
+.notice {
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.30);
+  background: #070b14;
+  color: #bfdbfe;
+  font-size: 0.88rem;
+}
+.notice b {
+  color: #f8fafc;
+}
+.notice code {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* Matplotlib Figures */
+.fig img {
+  background: #030712 !important;
+  border: 1px solid rgba(59, 130, 246, 0.22) !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
 """
 
 _BAND_COLORS = (
-    ("excellent", "#34d399"),
-    ("good", "#22d3ee"),
+    ("excellent", "#38bdf8"),
+    ("good", "#60a5fa"),
     ("needs", "#fbbf24"),
     ("different", "#f87171"),
 )
@@ -135,14 +312,12 @@ def _band_color(verdict: str) -> str:
     for key, color in _BAND_COLORS:
         if key in v:
             return color
-    return "#22d3ee"
+    return "#38bdf8"
 
 
-def hero_html(title: str, subtitle: str, chips: list[tuple[str, str]]) -> str:
-    """chips: list of (label, value), for example [("Verses", "9"), ("Scenes", "192")]."""
-    bars = "".join(
-        f'<i style="animation-delay:{i * 0.09:.2f}s"></i>' for i in range(14)
-    )
+def hero_html(title: str, subtitle: str, chips: List[Tuple[str, str]]) -> str:
+    """Render minimal dark hero section with animated equalizer bars and blue chips."""
+    bars = "".join(f'<i style="animation-delay:{i * 0.08:.2f}s"></i>' for i in range(14))
     chip_html = "".join(
         f'<span class="chip">{html.escape(k)} <b>{html.escape(v)}</b></span>'
         for k, v in chips
@@ -157,40 +332,80 @@ def hero_html(title: str, subtitle: str, chips: list[tuple[str, str]]) -> str:
     )
 
 
-def score_card_html(similarity: float, verdict: str, details: list[str] | None = None) -> str:
+def score_card_html(
+    similarity: float,
+    verdict: str,
+    details: Optional[List[str]] = None,
+    acoustic_cost: Optional[float] = None,
+    duration_ratio: Optional[float] = None,
+    flagged_count: Optional[int] = None,
+    **kwargs: Any,
+) -> str:
+    """Render minimal circular score indicator with acoustic and duration details."""
     pct = max(0.0, min(100.0, float(similarity)))
     color = _band_color(verdict)
-    meta = "".join(f"<div>{html.escape(d)}</div>" for d in (details or []))
+
+    detail_lines = []
+    if details:
+        detail_lines.extend(details)
+    else:
+        if acoustic_cost is not None:
+            detail_lines.append(f"Acoustic alignment cost: <b>{acoustic_cost:.3f}</b>")
+        if duration_ratio is not None:
+            detail_lines.append(f"Duration ratio (learner/ref): <b>{duration_ratio:.2f}x</b>")
+        if flagged_count is not None:
+            detail_lines.append(f"Flagged mismatch segments: <b>{flagged_count}</b>")
+
+    meta_html = "".join(f"<div>{d}</div>" for d in detail_lines)
     return (
         '<div class="score-wrap">'
         f'<div class="ring" style="--p:{pct:.1f};--c:{color}">'
         f'<div class="ring-in"><span class="ring-num">{pct:.0f}%</span>'
         f'<span class="ring-sub">{html.escape(verdict)}</span></div></div>'
-        f'<div class="score-meta">{meta}</div>'
+        f'<div class="score-meta">{meta_html}</div>'
         "</div>"
     )
 
 
-def verse_card_html(verse: str, margin: float, low_conf: bool) -> str:
+def verse_card_html(
+    verse: str = "",
+    margin: float = 0.0,
+    low_conf: bool = False,
+    predicted: str = "",
+    is_low_confidence: bool = False,
+    top_loglik: Optional[float] = None,
+    **kwargs: Any,
+) -> str:
+    """Render minimal verse classification card with status badge and likelihood margin."""
+    val = predicted if predicted else verse
+    is_warn = is_low_confidence or low_conf
     badge = (
-        '<span class="badge warn">Low confidence</span>'
-        if low_conf
+        '<span class="badge warn">Low Confidence</span>'
+        if is_warn
         else '<span class="badge ok">Confident</span>'
+    )
+    score_extra = (
+        f' &nbsp; <span class="chip">log-lik <b>{top_loglik:.1f}</b></span>'
+        if top_loglik is not None
+        else ""
     )
     return (
         '<div class="verse-card">'
-        '<div class="lab">Predicted verse</div>'
-        f'<div class="val">{html.escape(str(verse))}</div>'
-        f'{badge} <span class="chip">margin <b>{margin:.0f}</b></span>'
+        '<div class="lab">Predicted Verse</div>'
+        f'<div class="val">{html.escape(str(val))}</div>'
+        f'{badge} <span class="chip">margin <b>{margin:.1f}</b></span>{score_extra}'
         "</div>"
     )
 
 
-def notice_html(title: str, body: str) -> str:
-    return f'<div class="notice"><b>{html.escape(title)}</b><br>{body}</div>'
+def notice_html(title: str, body: str = "") -> str:
+    """Render informational notice card with subtle blue boundary."""
+    body_part = f"<br>{body}" if body else ""
+    return f'<div class="notice"><b>{html.escape(title)}</b>{body_part}</div>'
 
 
-def stat_chips_html(pairs: list[tuple[str, str]]) -> str:
+def stat_chips_html(pairs: List[Tuple[str, str]]) -> str:
+    """Render a container of blue chip badges."""
     inner = "".join(
         f'<span class="chip">{html.escape(k)} <b>{html.escape(v)}</b></span>'
         for k, v in pairs
