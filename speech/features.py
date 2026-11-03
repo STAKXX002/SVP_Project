@@ -1,6 +1,8 @@
-"""MFCC feature extraction and diagnostic plots for the speech half of SVP_Project."""
+"""MFCC feature extraction and diagnostic plots for the speech processing pipeline."""
 
 import argparse
+import subprocess
+import tempfile
 from pathlib import Path
 
 import librosa
@@ -10,6 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.signal import butter, sosfiltfilt
 from watermark import save_figure
 
 SR = 16000
@@ -20,14 +23,60 @@ WIN = 400  # 25 ms at 16 kHz
 
 
 def load_audio(path, sr=SR, trim=True, top_db=30):
-    """Load mono audio at a fixed sample rate, optionally trimming silence at the ends."""
-    y, _ = librosa.load(path, sr=sr, mono=True)
-    if trim:
+    """Load mono audio at a fixed sample rate.
+
+    Applies an 80 Hz Butterworth high-pass filter (zero-phase) before trimming,
+    trims trailing silence, and normalises by the 99.5th percentile amplitude
+    so initial recording clicks or pops do not dominate.
+    Also handles browser webm audio input via ffmpeg transcoding when needed.
+    """
+    path_str = str(path)
+    try:
+        y, _ = librosa.load(path_str, sr=sr, mono=True)
+    except Exception:
+        # Fallback to ffmpeg conversion for webm or unsupported formats
+        temp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        temp_wav.close()
+        try:
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                path_str,
+                "-ar",
+                str(sr),
+                "-ac",
+                "1",
+                temp_wav.name,
+            ]
+            res = subprocess.run(cmd, capture_output=True)
+            if res.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg failed to decode audio from {path_str}: {res.stderr.decode()}"
+                )
+            y, _ = librosa.load(temp_wav.name, sr=sr, mono=True)
+        finally:
+            Path(temp_wav.name).unlink(missing_ok=True)
+
+    if len(y) == 0:
+        return np.zeros(0, dtype=np.float32)
+
+    # 80 Hz high-pass filter (scipy Butterworth, zero-phase) before trimming
+    sos = butter(5, 80.0, btype="highpass", fs=sr, output="sos")
+    y = sosfiltfilt(sos, y)
+
+    if trim and len(y) > 0:
         y, _ = librosa.effects.trim(y, top_db=top_db)
-    peak = np.max(np.abs(y)) if len(y) else 0.0
-    if peak > 0:
-        y = y / peak
-    return y
+
+    if len(y) > 0:
+        # Normalise by the 99.5th percentile of absolute amplitude instead of peak
+        p99_5 = float(np.percentile(np.abs(y), 99.5))
+        if p99_5 > 1e-7:
+            y = np.clip(y / p99_5, -1.0, 1.0)
+
+    return y.astype(np.float32)
 
 
 def extract_mfcc(y, sr=SR, n_mfcc=N_MFCC, with_deltas=True, cmvn=True):
@@ -35,7 +84,7 @@ def extract_mfcc(y, sr=SR, n_mfcc=N_MFCC, with_deltas=True, cmvn=True):
 
     dims is n_mfcc, or 3 * n_mfcc with delta and delta-delta appended.
     cmvn applies per-utterance cepstral mean and variance normalisation,
-    which removes much of the microphone and channel difference between recordings.
+    which attenuates channel and microphone differences.
     """
     mfcc = librosa.feature.mfcc(
         y=y, sr=sr, n_mfcc=n_mfcc, n_fft=N_FFT, hop_length=HOP, win_length=WIN
@@ -53,7 +102,7 @@ def extract_mfcc(y, sr=SR, n_mfcc=N_MFCC, with_deltas=True, cmvn=True):
 
 
 def spectral_summary(y, sr=SR):
-    """Frame-level spectral descriptors, handy for the vowel and consonant analysis."""
+    """Frame-level spectral descriptors for vowel and consonant analysis."""
     centroid = librosa.feature.spectral_centroid(y=y, sr=sr, n_fft=N_FFT, hop_length=HOP)[0]
     bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr, n_fft=N_FFT, hop_length=HOP)[0]
     rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, n_fft=N_FFT, hop_length=HOP)[0]
@@ -70,7 +119,10 @@ def spectral_summary(y, sr=SR):
 
 
 def plot_features(y, sr, out_path, title=""):
-    """Save a three-panel figure: waveform, log-mel spectrogram, MFCCs."""
+    """Save a three-panel figure: waveform, log-mel spectrogram, MFCCs.
+
+    Plots the trimmed, filtered signal y.
+    """
     mfcc = extract_mfcc(y, sr, with_deltas=False, cmvn=False).T
     mel = librosa.power_to_db(
         librosa.feature.melspectrogram(
