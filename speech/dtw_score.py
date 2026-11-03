@@ -4,8 +4,8 @@ Usage:
     python -m speech.dtw_score data/reference/krishna.wav data/learner/krishna_1.wav
 
 Similarity = 0.85 x acoustic + 0.15 x duration - flagged-region penalty, clipped to 0..100.
-Calibration constants are read from speech/calibration.json when it exists
-(written by `python -m speech.calibrate --write`). Otherwise the defaults below apply.
+Calibration constants are defined as module defaults and can also be loaded from
+speech/calibration.json when present.
 """
 
 import argparse
@@ -35,13 +35,13 @@ from watermark import save_figure
 
 CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
 
-# Defaults, used only until calibration.json exists.
-#   COST_BEST: average DTW cost of a good repeat of the SAME word by the same speaker.
-#              Maps to 100% acoustic score. It is never 0, because two takes always differ.
-#   COST_ZERO: average DTW cost of a DIFFERENT word. Maps to 0% acoustic score.
-#   FLAG_COST: per-frame cost above which a reference region is flagged as a mismatch.
-DEFAULTS = {"COST_BEST": 0.30, "COST_ZERO": 0.65, "FLAG_COST": 0.55}
-MIN_FLAG_FRAMES = 5  # ignore flagged runs shorter than 50 ms
+# Module calibration constants
+COST_BEST = 0.143
+COST_ZERO = 0.71
+FLAG_COST = 0.40
+
+DEFAULTS = {"COST_BEST": COST_BEST, "COST_ZERO": COST_ZERO, "FLAG_COST": FLAG_COST}
+MIN_FLAG_FRAMES = 3  # report flagged segments spanning at least 3 consecutive frames (30 ms)
 ACOUSTIC_WEIGHT = 0.85  # remainder goes to the duration score
 FLAG_PENALTY = 1.5  # similarity points removed per percent of the reference that is flagged
 MAX_FLAG_PENALTY = 40.0
@@ -50,7 +50,10 @@ MAX_FLAG_PENALTY = 40.0
 def load_constants():
     consts = dict(DEFAULTS)
     if CALIBRATION_FILE.exists():
-        consts.update(json.loads(CALIBRATION_FILE.read_text()))
+        try:
+            consts.update(json.loads(CALIBRATION_FILE.read_text()))
+        except Exception:
+            pass
     return consts
 
 
@@ -100,7 +103,7 @@ def duration_score(ref_len_s, learner_len_s):
     return 100.0 * max(0.0, 1.0 - abs(np.log(ratio)) / np.log(2.0))
 
 
-def acoustic_score(avg_cost, cost_best, cost_zero):
+def acoustic_score(avg_cost, cost_best=COST_BEST, cost_zero=COST_ZERO):
     """Linear map: cost_best -> 100, cost_zero -> 0, clipped."""
     span = max(cost_zero - cost_best, 1e-6)
     return 100.0 * float(np.clip((cost_zero - avg_cost) / span, 0.0, 1.0))
@@ -131,9 +134,8 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
     lrn_len = len(y_lrn) / SR
     dur = duration_score(ref_len, lrn_len)
     frame_cost = per_frame_cost(wp, local, len(f_ref))
-    segments = flag_segments(frame_cost, consts["FLAG_COST"])
+    segments = flag_segments(frame_cost, consts["FLAG_COST"], min_frames=MIN_FLAG_FRAMES)
 
-    # A single wrong sound barely moves the word-level average, so also penalise flagged time.
     flagged_frac = sum(e - s for s, e, _ in segments) * SR / HOP / max(len(f_ref), 1)
     penalty = min(MAX_FLAG_PENALTY, FLAG_PENALTY * 100.0 * flagged_frac)
     overall = ACOUSTIC_WEIGHT * acoustic + (1.0 - ACOUSTIC_WEIGHT) * dur - penalty
@@ -160,8 +162,17 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
     if out_dir is not None:
         name = f"{Path(ref_path).stem}_vs_{Path(learner_path).stem}"
         result["figure"] = str(
-            plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments,
-                            Path(out_dir) / f"{name}_dtw.png", name, consts["FLAG_COST"])
+            plot_comparison(
+                y_ref,
+                y_lrn,
+                C,
+                wp,
+                frame_cost,
+                segments,
+                Path(out_dir) / f"{name}_dtw.png",
+                name,
+                consts["FLAG_COST"],
+            )
         )
     return result
 
@@ -173,17 +184,28 @@ def _mel_db(y):
     return librosa.power_to_db(mel, ref=np.max)
 
 
-def plot_comparison(y_ref, y_lrn, C, wp, frame_cost, segments, out_path, title="",
-                    flag_cost=DEFAULTS["FLAG_COST"]):
+def plot_comparison(
+    y_ref,
+    y_lrn,
+    C,
+    wp,
+    frame_cost,
+    segments,
+    out_path,
+    title="",
+    flag_cost=FLAG_COST,
+):
     """Four panels: both spectrograms, DTW path on the cost matrix, per-frame cost."""
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
-    librosa.display.specshow(_mel_db(y_ref), sr=SR, hop_length=HOP,
-                             x_axis="time", y_axis="mel", ax=axes[0, 0])
+    librosa.display.specshow(
+        _mel_db(y_ref), sr=SR, hop_length=HOP, x_axis="time", y_axis="mel", ax=axes[0, 0]
+    )
     axes[0, 0].set_title("Reference")
 
-    librosa.display.specshow(_mel_db(y_lrn), sr=SR, hop_length=HOP,
-                             x_axis="time", y_axis="mel", ax=axes[0, 1])
+    librosa.display.specshow(
+        _mel_db(y_lrn), sr=SR, hop_length=HOP, x_axis="time", y_axis="mel", ax=axes[0, 1]
+    )
     axes[0, 1].set_title("Learner")
 
     axes[1, 0].imshow(C, origin="lower", aspect="auto", cmap="magma")
