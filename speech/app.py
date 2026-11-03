@@ -1,7 +1,8 @@
 """Gradio web application for Speech and Video Processing coursework demo.
 
-Strict 2-color high-contrast aesthetic: Pure Black (#000000) and Pure Cyan (#00ffff).
-No gradients, no pastel tones, no multi-colored badges.
+Refined aesthetic: Minimal pure black base (#000000), subtle surfaces (#070b12),
+thin cyan accent lines (rgba(0, 255, 255, 0.22)), and smooth transitions.
+Preserves rich scientific output colors in all figures and charts.
 
 Entry points:
     python -m speech.app
@@ -76,10 +77,16 @@ FLAG_THRESHOLD = FLAG_COST
 LOW_CONFIDENCE_THRESHOLD = 500.0  # Log-likelihood margin threshold
 _bundle = None
 
-# Strict 2-color Colormap (Black to Cyan)
-BLACK_CYAN_CMAP = matplotlib.colors.LinearSegmentedColormap.from_list(
-    "black_cyan", ["#000000", "#002b2b", "#006666", "#00aaaa", "#00ffff"]
-)
+# Figure styling constants
+DARK_BG = "#070b12"
+PANEL_BG = "#0a101a"
+BORDER_RGBA = (0.0, 1.0, 1.0, 0.22)
+TEXT_WHITE = "#f8fafc"
+TEXT_MUTED = "#94a3b8"
+ACCENT_BLUE = "#38bdf8"
+ACCENT_CYAN = "#00ffff"
+ACCENT_RED = "#ef4444"
+ACCENT_AMBER = "#fbbf24"
 
 
 def find_free_port(start_port: int = 7860, max_attempts: int = 50) -> int:
@@ -131,6 +138,10 @@ def get_bundle():
 def get_reference_words() -> List[str]:
     """Scan data directory for reference word templates."""
     words = set()
+    ref_dir = DATA_DIR / "reference"
+    if ref_dir.exists():
+        for p in ref_dir.glob("*.wav"):
+            words.add(p.stem)
     for p in DATA_DIR.glob("word_*_ref.wav"):
         name = p.stem.replace("word_", "").replace("_ref", "")
         words.add(name)
@@ -139,25 +150,20 @@ def get_reference_words() -> List[str]:
             parts = p.stem.split("_")
             if len(parts) >= 2:
                 words.add(parts[1])
-    if not words:
-        ref_dir = DATA_DIR / "reference"
-        if ref_dir.exists():
-            for p in ref_dir.glob("*.wav"):
-                words.add(p.stem)
     return sorted(list(words)) if words else ["krishna"]
 
 
 def get_demo_audio_for_word(word: str) -> Optional[str]:
     """Return path to bundled learner audio for given reference word."""
     candidates = [
-        DATA_DIR / f"word_{word}_learner.wav",
-        DATA_DIR / f"word_{word}_test.wav",
-        DATA_DIR / f"word_{word}_02.wav",
-        DATA_DIR / f"word_{word}_01.wav",
-        DATA_DIR / f"word_{word}_ref.wav",
         DATA_DIR / "learner" / f"{word}_1.wav",
         DATA_DIR / "learner" / f"{word}_2.wav",
         DATA_DIR / "learner" / f"{word}.wav",
+        DATA_DIR / f"word_{word}_learner.wav",
+        DATA_DIR / f"word_{word}_test.wav",
+        DATA_DIR / f"word_{word}_01.wav",
+        DATA_DIR / f"word_{word}_ref.wav",
+        DATA_DIR / "reference" / f"{word}.wav",
     ]
     for c in candidates:
         if c.exists():
@@ -171,18 +177,15 @@ def get_demo_audio_for_verse() -> Optional[str]:
     """Return path to a bundled verse sample."""
     candidates = [
         DATA_DIR / "test_05.wav",
-        DATA_DIR / "verse_01_01.wav",
-        DATA_DIR / "verse_01_take1.wav",
         DATA_DIR / "verses" / "2.13" / "take_1.wav",
         DATA_DIR / "verses" / "1.1" / "take_1.wav",
+        DATA_DIR / "verses" / "2.22" / "take_1.wav",
+        DATA_DIR / "verse_01_01.wav",
     ]
     for c in candidates:
         if c.exists():
             return str(c)
     matches = sorted(glob.glob(str(DATA_DIR / "test_*.wav")))
-    if matches:
-        return matches[0]
-    matches = sorted(glob.glob(str(DATA_DIR / "verse_*.wav")))
     if matches:
         return matches[0]
     matches = sorted(glob.glob(str(DATA_DIR / "verses" / "*" / "*.wav")))
@@ -197,12 +200,16 @@ def ensure_faststart_video(input_path: Path) -> Optional[str]:
         return None
 
     if "faststart" in input_path.stem:
-        return str(input_path)
+        return str(input_path.resolve())
+
+    faststart_peer = input_path.parent / f"{input_path.stem}_faststart.mp4"
+    if faststart_peer.exists() and faststart_peer.stat().st_size > 0:
+        return str(faststart_peer.resolve())
 
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = DEMO_OUT_DIR / f"{input_path.stem}_faststart.mp4"
     if out_path.exists() and out_path.stat().st_size > 0:
-        return str(out_path)
+        return str(out_path.resolve())
 
     cmd = [
         "ffmpeg",
@@ -220,9 +227,9 @@ def ensure_faststart_video(input_path: Path) -> Optional[str]:
     ]
     try:
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        return str(out_path)
+        return str(out_path.resolve())
     except Exception:
-        return str(input_path)
+        return str(input_path.resolve())
 
 
 def get_verdict(sim: float) -> str:
@@ -237,53 +244,157 @@ def get_verdict(sim: float) -> str:
 
 
 # -------------------------------------------------------------------------
-# Dynamic 2-Color Data Plotting Functions (Black and Cyan Only)
+# Dynamic Data Plotting Functions (Rich Output Colors Preserved)
 # -------------------------------------------------------------------------
 
+def plot_dark_dtw_figure(ref_path: str, learner_path: str, segments: list) -> Optional[str]:
+    """Render 4-panel comparison figure preserving rich output colors."""
+    DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_png = DEMO_OUT_DIR / f"dtw_{int(time.time() * 1000)}.png"
+
+    try:
+        y_ref = load_audio(ref_path)
+        y_lrn = load_audio(learner_path)
+        f_ref = extract_mfcc(y_ref)
+        f_lrn = extract_mfcc(y_lrn)
+        C, wp, local = align(f_ref, f_lrn)
+        frame_cost = per_frame_cost(wp, local, len(f_ref))
+
+        fig, axes = plt.subplots(2, 2, figsize=(11, 7), constrained_layout=True)
+        fig.patch.set_facecolor(DARK_BG)
+
+        for ax in axes.flat:
+            ax.set_facecolor(DARK_BG)
+            for s in ax.spines.values():
+                s.set_color(BORDER_RGBA)
+            ax.tick_params(colors=TEXT_MUTED, length=2.5)
+
+        # 0,0: Reference Spectrogram (rich magma colormap)
+        librosa.display.specshow(
+            _mel_db(y_ref),
+            sr=SR,
+            hop_length=HOP,
+            x_axis="time",
+            y_axis="mel",
+            ax=axes[0, 0],
+            cmap="magma",
+        )
+        axes[0, 0].set_title("Reference Mel Spectrogram", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[0, 0].set_xlabel("Time (s)", color=TEXT_MUTED, fontsize=8)
+        axes[0, 0].set_ylabel("Hz", color=TEXT_MUTED, fontsize=8)
+
+        # 0,1: Learner Spectrogram (rich magma colormap)
+        librosa.display.specshow(
+            _mel_db(y_lrn),
+            sr=SR,
+            hop_length=HOP,
+            x_axis="time",
+            y_axis="mel",
+            ax=axes[0, 1],
+            cmap="magma",
+        )
+        axes[0, 1].set_title("Learner Mel Spectrogram", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[0, 1].set_xlabel("Time (s)", color=TEXT_MUTED, fontsize=8)
+        axes[0, 1].set_ylabel("Hz", color=TEXT_MUTED, fontsize=8)
+
+        # 1,0: Alignment Matrix & Path (magma heatmap with cyan warp path)
+        axes[1, 0].imshow(C, origin="lower", aspect="auto", cmap="magma")
+        axes[1, 0].plot(wp[:, 1], wp[:, 0], color=ACCENT_CYAN, linewidth=1.8, label="DTW Path")
+        axes[1, 0].set_xlabel("Learner Frame", color=TEXT_MUTED, fontsize=8)
+        axes[1, 0].set_ylabel("Reference Frame", color=TEXT_MUTED, fontsize=8)
+        axes[1, 0].set_title("Cosine Cost Matrix & Warp Path", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 0].legend(
+            loc="upper left",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
+
+        # 1,1: Per-frame mismatch cost
+        t = np.arange(len(frame_cost)) * HOP / SR
+        axes[1, 1].plot(t, frame_cost, color=ACCENT_BLUE, linewidth=1.5, label="Alignment Cost")
+        axes[1, 1].axhline(
+            FLAG_COST,
+            color=ACCENT_AMBER,
+            linestyle="--",
+            linewidth=1.3,
+            label=f"Mismatch Threshold ({FLAG_COST:.2f})",
+        )
+        for i, seg in enumerate(segments):
+            axes[1, 1].axvspan(
+                seg[0],
+                seg[1],
+                color=ACCENT_RED,
+                alpha=0.28,
+                label="Flagged Segment" if i == 0 else "",
+            )
+
+        axes[1, 1].set_xlabel("Reference Time (s)", color=TEXT_MUTED, fontsize=8)
+        axes[1, 1].set_ylabel("Cosine Cost", color=TEXT_MUTED, fontsize=8)
+        axes[1, 1].set_title("Per-Frame Cost (Red = Flagged Mismatch)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 1].set_ylim(0, max(0.8, float(np.max(frame_cost) * 1.15)))
+        axes[1, 1].legend(
+            loc="upper right",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
+        axes[1, 1].grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
+
+        plt.savefig(out_png, dpi=130, facecolor=DARK_BG)
+        plt.close(fig)
+        return str(out_png)
+    except Exception as e:
+        print(f"Error generating DTW figure: {e}")
+        return None
+
+
 def plot_data_confusion_matrix() -> Optional[str]:
-    """Plot the held-out HMM confusion matrix in strict black and cyan."""
+    """Plot the held-out HMM confusion matrix in rich multi-tone Blues."""
     verses = ["1.1", "18.66", "2.13", "2.22", "2.23", "2.47", "4.7", "4.8", "9.26"]
     cm = np.eye(len(verses), dtype=int) * 8  # 4-fold CV with 8 takes per verse, 100.0% accuracy
 
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = DEMO_OUT_DIR / "verse_confusion_2color.png"
+    out_path = DEMO_OUT_DIR / "verse_confusion_color.png"
 
-    fig, ax = plt.subplots(figsize=(6.2, 5.2), constrained_layout=True)
-    fig.patch.set_facecolor("#000000")
-    ax.set_facecolor("#000000")
+    fig, ax = plt.subplots(figsize=(6.0, 5.0), constrained_layout=True)
+    fig.patch.set_facecolor(DARK_BG)
+    ax.set_facecolor(DARK_BG)
 
-    im = ax.imshow(cm, cmap=BLACK_CYAN_CMAP, vmin=0, vmax=8)
+    im = ax.imshow(cm, cmap="Blues", vmin=0, vmax=8)
 
     ax.set_xticks(range(len(verses)))
     ax.set_yticks(range(len(verses)))
-    ax.set_xticklabels(verses, rotation=45, ha="right", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-    ax.set_yticklabels(verses, color="#00ffff", fontfamily="monospace", fontsize=8.5)
-    ax.set_xlabel("PREDICTED VERSE", color="#00ffff", fontfamily="monospace", fontsize=9, labelpad=8)
-    ax.set_ylabel("TRUE VERSE", color="#00ffff", fontfamily="monospace", fontsize=9, labelpad=8)
-    ax.set_title("HMM CONFUSION MATRIX (100.0% ACCURACY)", color="#00ffff", fontfamily="monospace", fontsize=10, fontweight="bold", pad=10)
+    ax.set_xticklabels(verses, rotation=45, ha="right", color=TEXT_MUTED, fontsize=8.5)
+    ax.set_yticklabels(verses, color=TEXT_MUTED, fontsize=8.5)
+    ax.set_xlabel("Predicted Verse", color=TEXT_WHITE, fontsize=9, labelpad=8)
+    ax.set_ylabel("True Verse", color=TEXT_WHITE, fontsize=9, labelpad=8)
+    ax.set_title("HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)", color=TEXT_WHITE, fontsize=10, fontweight="bold", pad=10)
 
     for i in range(len(verses)):
         for j in range(len(verses)):
             val = cm[i, j]
-            color = "#000000" if val > 4 else ("#00ffff" if val > 0 else "#222222")
+            color = "#ffffff" if val > 4 else ("#38bdf8" if val > 0 else "#334155")
             weight = "bold" if val > 0 else "normal"
-            ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight=weight, fontsize=9.5, fontfamily="monospace")
+            ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight=weight, fontsize=9.5)
 
     for spine in ax.spines.values():
-        spine.set_color("#00ffff")
-    ax.tick_params(colors="#00ffff", length=3)
+        spine.set_color(BORDER_RGBA)
+    ax.tick_params(colors=TEXT_MUTED, length=3)
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.ax.tick_params(colors="#00ffff")
-    cbar.outline.set_edgecolor("#00ffff")
+    cbar.ax.tick_params(colors=TEXT_MUTED)
+    cbar.outline.set_edgecolor(BORDER_RGBA)
 
-    plt.savefig(out_path, dpi=120, facecolor="#000000")
+    plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
     plt.close(fig)
     return str(out_path)
 
 
 def plot_data_scene_timeline() -> Optional[str]:
-    """Plot video scene timeline and duration distribution in strict black and cyan."""
+    """Plot video scene timeline and duration distribution preserving distinct scene colors."""
     scenes_candidates = [
         OUTPUTS_DIR / "cache" / "input" / "scenes.json",
         OUTPUTS_DIR / "input_scenes.json",
@@ -308,55 +419,67 @@ def plot_data_scene_timeline() -> Optional[str]:
 
         duration = scenes[-1]["end_s"]
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = DEMO_OUT_DIR / "scene_timeline_2color.png"
+        out_path = DEMO_OUT_DIR / "scene_timeline_color.png"
 
         fig, (ax1, ax2) = plt.subplots(
             2, 1, figsize=(11, 4.2), gridspec_kw={"height_ratios": [1.1, 1.8]}, constrained_layout=True
         )
-        fig.patch.set_facecolor("#000000")
+        fig.patch.set_facecolor(DARK_BG)
 
-        # Top: Timeline bar with alternating cyan shades
-        ax1.set_facecolor("#000000")
-        for i, sc in enumerate(scenes):
+        # Top: Distinct colored scene intervals using tab20
+        ax1.set_facecolor(DARK_BG)
+        cmap = plt.get_cmap("tab20")
+        for sc in scenes:
             dur = sc["end_s"] - sc["start_s"]
-            c = "#00ffff" if (i % 2 == 0) else "#006666"
-            ax1.barh(0, dur, left=sc["start_s"] / 60.0, height=0.7, color=c, edgecolor="#000000", linewidth=0.5)
+            ax1.barh(
+                0,
+                dur / 60.0,
+                left=sc["start_s"] / 60.0,
+                height=0.7,
+                color=cmap(sc["index"] % 20),
+                edgecolor="none",
+            )
 
         ax1.set_xlim(0, duration / 60.0)
         ax1.set_ylim(-0.6, 0.6)
         ax1.set_yticks([])
-        ax1.set_xlabel("TIMELINE (MINUTES)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
+        ax1.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
         ax1.set_title(
-            f"{len(scenes)} DETECTED SCENE INTERVALS (MIN 1.5S, MERGE < 0.85)",
-            color="#00ffff",
-            fontfamily="monospace",
+            f"Scene Boundary Intervals ({len(scenes)} Scenes, Min 1.5 s Duration)",
+            color=TEXT_WHITE,
             fontsize=9.5,
             fontweight="bold",
             pad=8,
         )
         for spine in ax1.spines.values():
-            spine.set_color("#00ffff")
-        ax1.tick_params(colors="#00ffff", length=3)
+            spine.set_color(BORDER_RGBA)
+        ax1.tick_params(colors=TEXT_MUTED, length=3)
 
         # Bottom: Duration profile over time
-        ax2.set_facecolor("#000000")
+        ax2.set_facecolor(DARK_BG)
         durations = [sc["end_s"] - sc["start_s"] for sc in scenes]
         midpoints = [(sc["start_s"] + sc["end_s"]) / 120.0 for sc in scenes]
 
-        ax2.plot(midpoints, durations, color="#00ffff", linewidth=1.2, label="SCENE DURATION (S)")
-        ax2.fill_between(midpoints, durations, color="#00ffff", alpha=0.15)
-        ax2.axhline(1.5, color="#ffffff", linestyle="--", linewidth=0.9, label="1.5S MINIMUM CUTOFF")
+        ax2.plot(midpoints, durations, color=ACCENT_BLUE, linewidth=1.3, label="Scene Duration (s)")
+        ax2.fill_between(midpoints, durations, color=ACCENT_BLUE, alpha=0.15)
+        ax2.axhline(1.5, color=ACCENT_RED, linestyle="--", linewidth=1.2, label="1.5 s Minimum Cutoff")
         ax2.set_xlim(0, duration / 60.0)
         ax2.set_ylim(0, max(durations) * 1.15)
-        ax2.set_xlabel("TIMELINE (MINUTES)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.set_ylabel("DURATION (S)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.legend(loc="upper right", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
+        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_ylabel("Duration (s)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.legend(
+            loc="upper right",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
         for spine in ax2.spines.values():
-            spine.set_color("#00ffff")
-        ax2.tick_params(colors="#00ffff", length=3)
-        ax2.grid(True, linestyle=":", alpha=0.25, color="#00ffff")
+            spine.set_color(BORDER_RGBA)
+        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
-        plt.savefig(out_path, dpi=120, facecolor="#000000")
+        plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
         return str(out_path)
     except Exception as e:
@@ -366,7 +489,7 @@ def plot_data_scene_timeline() -> Optional[str]:
 
 
 def plot_data_motion_analysis() -> Optional[str]:
-    """Plot optical flow heatmap and motion-over-time time series in strict black and cyan."""
+    """Plot optical flow heatmap and motion-over-time time series in rich inferno."""
     motion_json = OUTPUTS_DIR / "cache" / "input" / "motion.json"
     heat_npy = OUTPUTS_DIR / "cache" / "input" / "heat.npy"
     scenes_json = OUTPUTS_DIR / "cache" / "input" / "scenes.json"
@@ -390,30 +513,41 @@ def plot_data_motion_analysis() -> Optional[str]:
         heat = np.load(heat_npy) if heat_npy.exists() else None
 
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = DEMO_OUT_DIR / "motion_analysis_2color.png"
+        out_path = DEMO_OUT_DIR / "motion_analysis_color.png"
 
         fig = plt.figure(figsize=(11, 4.2), constrained_layout=True)
-        fig.patch.set_facecolor("#000000")
+        fig.patch.set_facecolor(DARK_BG)
         gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.3])
 
-        # Left: Motion Heatmap in Black-Cyan
+        # Left: Motion Heatmap in rich inferno overlay
         ax1 = fig.add_subplot(gs[0])
-        ax1.set_facecolor("#000000")
+        ax1.set_facecolor(DARK_BG)
 
         if heat is not None:
             p2 = float(np.percentile(heat, 2.0))
             p98 = float(np.percentile(heat, 98.0))
             norm_heat = np.clip((heat - p2) / max(p98 - p2, 1e-9), 0.0, 1.0)
-            ax1.imshow(norm_heat, cmap=BLACK_CYAN_CMAP)
-        ax1.set_title("ACCUMULATED OPTICAL FLOW DENSITY", color="#00ffff", fontfamily="monospace", fontsize=9.5, fontweight="bold", pad=8)
+
+            bg_path = OUTPUTS_DIR / "cache" / "input" / "bg.png"
+            if bg_path.exists() and cv2 is not None:
+                bg = cv2.imread(str(bg_path))
+                cmap = plt.get_cmap("inferno")
+                heat_rgb = (cmap(norm_heat)[:, :, :3] * 255).astype(np.uint8)
+                if bg.shape[:2] != norm_heat.shape[:2]:
+                    bg = cv2.resize(bg, (norm_heat.shape[1], norm_heat.shape[0]))
+                overlay = cv2.addWeighted(bg, 0.4, cv2.cvtColor(heat_rgb, cv2.COLOR_RGB2BGR), 0.6, 0.0)
+                ax1.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+            else:
+                ax1.imshow(norm_heat, cmap="inferno")
+        ax1.set_title("Accumulated Optical Flow (Inferno Overlay)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
         ax1.axis("off")
 
         # Right: Flow Magnitude
         ax2 = fig.add_subplot(gs[1])
-        ax2.set_facecolor("#000000")
+        ax2.set_facecolor(DARK_BG)
         t_min = times / 60.0
-        ax2.plot(t_min, values, color="#00ffff", linewidth=1.0, label="FLOW MAGNITUDE")
-        ax2.fill_between(t_min, values, color="#00ffff", alpha=0.15)
+        ax2.plot(t_min, values, color=ACCENT_BLUE, linewidth=1.1, label="Optical Flow Magnitude")
+        ax2.fill_between(t_min, values, color=ACCENT_BLUE, alpha=0.18)
 
         y_max = float(values.max()) * 1.08 if len(values) else 1.0
         ax2.set_ylim(0, y_max)
@@ -421,18 +555,24 @@ def plot_data_motion_analysis() -> Optional[str]:
 
         if scenes:
             starts = np.array([sc["start_s"] / 60.0 for sc in scenes])
-            ax2.plot(starts, np.full_like(starts, y_max * 0.96), "|", color="#ffffff", markersize=4, alpha=0.8, label="SCENE CUTS")
+            ax2.plot(starts, np.full_like(starts, y_max * 0.96), "|", color=TEXT_WHITE, markersize=4, alpha=0.8, label="Scene Cuts")
 
-        ax2.set_xlabel("TIMELINE (MINUTES)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.set_ylabel("MEAN FLOW (PX/SAMPLE)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.set_title("GLOBAL MOTION MAGNITUDE OVER TIME", color="#00ffff", fontfamily="monospace", fontsize=9.5, fontweight="bold", pad=8)
-        ax2.legend(loc="upper right", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
+        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_ylabel("Mean Flow (px/sample)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_title("Global Motion Magnitude Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax2.legend(
+            loc="upper right",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
         for spine in ax2.spines.values():
-            spine.set_color("#00ffff")
-        ax2.tick_params(colors="#00ffff", length=3)
-        ax2.grid(True, linestyle=":", alpha=0.25, color="#00ffff")
+            spine.set_color(BORDER_RGBA)
+        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
-        plt.savefig(out_path, dpi=120, facecolor="#000000")
+        plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
         return str(out_path)
     except Exception as e:
@@ -442,7 +582,7 @@ def plot_data_motion_analysis() -> Optional[str]:
 
 
 def plot_data_trajectories() -> Optional[str]:
-    """Plot pedestrian trajectory coordinates and kinematics in strict black and cyan."""
+    """Plot pedestrian trajectory coordinates and kinematics with distinct bounding boxes."""
     tracks_json = OUTPUTS_DIR / "cache" / "input" / "tracks_yolo_1405_5.json"
 
     if not tracks_json.exists():
@@ -466,63 +606,80 @@ def plot_data_trajectories() -> Optional[str]:
         rel_times = np.array(timestamps) - timestamps[0]
 
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = DEMO_OUT_DIR / "trajectories_2color.png"
+        out_path = DEMO_OUT_DIR / "trajectories_color.png"
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2), gridspec_kw={"width_ratios": [1.3, 1]}, constrained_layout=True)
-        fig.patch.set_facecolor("#000000")
+        fig.patch.set_facecolor(DARK_BG)
 
         # Left: Spatial Trajectory & Boxes
-        ax1.set_facecolor("#000000")
+        ax1.set_facecolor(DARK_BG)
         ax1.set_xlim(120, 480)
         ax1.set_ylim(480, 60)
 
-        for idx, label in [(0, "START (1405.0S)"), (len(boxes) // 2, "MID (1407.4S)"), (-1, "END (1409.8S)")]:
+        box_configs = [
+            (0, "Start (1405.0 s)", "#22c55e"),
+            (len(boxes) // 2, "Mid (1407.4 s)", ACCENT_BLUE),
+            (-1, "End (1409.8 s)", ACCENT_RED),
+        ]
+        for idx, label, color in box_configs:
             b = boxes[idx]
             rect = plt.Rectangle(
                 (b[0], b[1]),
                 b[2] - b[0],
                 b[3] - b[1],
                 fill=False,
-                edgecolor="#ffffff",
-                linewidth=1.2,
+                edgecolor=color,
+                linewidth=1.4,
                 linestyle="--",
                 label=label,
             )
             ax1.add_patch(rect)
 
-        ax1.plot(centroids[:, 0], centroids[:, 1], color="#00ffff", linewidth=2.0, zorder=3, label="CENTROID PATH")
-        ax1.scatter(centroids[:, 0], centroids[:, 1], color="#00ffff", edgecolor="#ffffff", s=32, zorder=4)
+        ax1.plot(centroids[:, 0], centroids[:, 1], color=ACCENT_CYAN, linewidth=2.0, zorder=3, label="Centroid Path")
+        ax1.scatter(centroids[:, 0], centroids[:, 1], color=ACCENT_CYAN, edgecolor=TEXT_WHITE, s=32, zorder=4)
 
-        ax1.set_xlabel("FRAME X (PX)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax1.set_ylabel("FRAME Y (PX)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax1.set_title("SPATIAL TRAJECTORY PATH (1405S TO 1410S)", color="#00ffff", fontfamily="monospace", fontsize=9.5, fontweight="bold", pad=8)
-        ax1.legend(loc="lower left", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
+        ax1.set_xlabel("Frame X (px)", color=TEXT_MUTED, fontsize=8.5)
+        ax1.set_ylabel("Frame Y (px)", color=TEXT_MUTED, fontsize=8.5)
+        ax1.set_title("Spatial Trajectory Path (1405 s to 1410 s)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax1.legend(
+            loc="lower left",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
         for spine in ax1.spines.values():
-            spine.set_color("#00ffff")
-        ax1.tick_params(colors="#00ffff", length=3)
-        ax1.grid(True, linestyle=":", alpha=0.25, color="#00ffff")
+            spine.set_color(BORDER_RGBA)
+        ax1.tick_params(colors=TEXT_MUTED, length=3)
+        ax1.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
         # Right: Velocity Kinematics
-        ax2.set_facecolor("#000000")
+        ax2.set_facecolor(DARK_BG)
         diffs = np.sqrt(np.sum(np.diff(centroids, axis=0) ** 2, axis=1))
         dt = np.diff(timestamps)
         velocities = diffs / dt
         vel_times = rel_times[1:]
 
-        ax2.plot(vel_times, velocities, color="#00ffff", linewidth=1.5, marker="o", markersize=3.5, markerfacecolor="#000000", markeredgecolor="#00ffff")
-        ax2.fill_between(vel_times, velocities, color="#00ffff", alpha=0.15)
-        ax2.axhline(np.mean(velocities), color="#ffffff", linestyle=":", label=f"MEAN ({np.mean(velocities):.1f} PX/S)")
+        ax2.plot(vel_times, velocities, color=ACCENT_BLUE, linewidth=1.5, marker="o", markersize=3.5, markerfacecolor=PANEL_BG, markeredgecolor=ACCENT_BLUE)
+        ax2.fill_between(vel_times, velocities, color=ACCENT_BLUE, alpha=0.18)
+        ax2.axhline(np.mean(velocities), color=TEXT_WHITE, linestyle=":", label=f"Mean ({np.mean(velocities):.1f} px/s)")
 
-        ax2.set_xlabel("ELAPSED TIME (S)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.set_ylabel("SPEED (PX/S)", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-        ax2.set_title("TRACK KINEMATICS OVER TIME", color="#00ffff", fontfamily="monospace", fontsize=9.5, fontweight="bold", pad=8)
-        ax2.legend(loc="upper right", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
+        ax2.set_xlabel("Elapsed Time (s)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_ylabel("Speed (px/s)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_title("Track Kinematics Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax2.legend(
+            loc="upper right",
+            facecolor=PANEL_BG,
+            edgecolor=BORDER_RGBA,
+            labelcolor=TEXT_WHITE,
+            fontsize=7.5,
+        )
         for spine in ax2.spines.values():
-            spine.set_color("#00ffff")
-        ax2.tick_params(colors="#00ffff", length=3)
-        ax2.grid(True, linestyle=":", alpha=0.25, color="#00ffff")
+            spine.set_color(BORDER_RGBA)
+        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
-        plt.savefig(out_path, dpi=120, facecolor="#000000")
+        plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
         plt.close(fig)
         return str(out_path)
     except Exception as e:
@@ -531,93 +688,32 @@ def plot_data_trajectories() -> Optional[str]:
         return str(fallback[0]) if fallback else None
 
 
-def plot_dark_dtw_figure(ref_path: str, learner_path: str, segments: list) -> Optional[str]:
-    """Render 4-panel comparison figure in strict black and cyan."""
-    DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_png = DEMO_OUT_DIR / f"dtw_{int(time.time() * 1000)}.png"
-
-    try:
-        y_ref = load_audio(ref_path)
-        y_lrn = load_audio(learner_path)
-        f_ref = extract_mfcc(y_ref)
-        f_lrn = extract_mfcc(y_lrn)
-        C, wp, local = align(f_ref, f_lrn)
-        frame_cost = per_frame_cost(wp, local, len(f_ref))
-
-        fig, axes = plt.subplots(2, 2, figsize=(11, 7), constrained_layout=True)
-        fig.patch.set_facecolor("#000000")
-
-        for ax in axes.flat:
-            ax.set_facecolor("#000000")
-            for s in ax.spines.values():
-                s.set_color("#00ffff")
-            ax.tick_params(colors="#00ffff", length=2.5)
-
-        # 0,0: Reference Spectrogram
-        librosa.display.specshow(_mel_db(y_ref), sr=SR, hop_length=HOP, x_axis="time", y_axis="mel", ax=axes[0, 0], cmap=BLACK_CYAN_CMAP)
-        axes[0, 0].set_title("REFERENCE MEL SPECTROGRAM", color="#00ffff", fontsize=9.5, fontfamily="monospace", fontweight="bold")
-        axes[0, 0].set_xlabel("TIME (S)", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[0, 0].set_ylabel("HZ", color="#00ffff", fontsize=8, fontfamily="monospace")
-
-        # 0,1: Learner Spectrogram
-        librosa.display.specshow(_mel_db(y_lrn), sr=SR, hop_length=HOP, x_axis="time", y_axis="mel", ax=axes[0, 1], cmap=BLACK_CYAN_CMAP)
-        axes[0, 1].set_title("LEARNER MEL SPECTROGRAM", color="#00ffff", fontsize=9.5, fontfamily="monospace", fontweight="bold")
-        axes[0, 1].set_xlabel("TIME (S)", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[0, 1].set_ylabel("HZ", color="#00ffff", fontsize=8, fontfamily="monospace")
-
-        # 1,0: Alignment Matrix & Path
-        axes[1, 0].imshow(C, origin="lower", aspect="auto", cmap=BLACK_CYAN_CMAP)
-        axes[1, 0].plot(wp[:, 1], wp[:, 0], color="#ffffff", linewidth=1.5, label="DTW PATH")
-        axes[1, 0].set_xlabel("LEARNER FRAME", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[1, 0].set_ylabel("REFERENCE FRAME", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[1, 0].set_title("ALIGNMENT MATRIX & WARP PATH", color="#00ffff", fontsize=9.5, fontfamily="monospace", fontweight="bold")
-        axes[1, 0].legend(loc="upper left", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
-
-        # 1,1: Per-Frame Cost
-        t = np.arange(len(frame_cost)) * HOP / SR
-        axes[1, 1].plot(t, frame_cost, color="#00ffff", linewidth=1.5, label="ALIGNMENT COST")
-        axes[1, 1].fill_between(t, frame_cost, color="#00ffff", alpha=0.15)
-        axes[1, 1].axhline(FLAG_THRESHOLD, color="#ffffff", linestyle="--", linewidth=1.2, label=f"THRESHOLD ({FLAG_THRESHOLD:.2f})")
-        for s in segments:
-            start_s = float(s[0]) if isinstance(s, (list, tuple)) else float(s.get("start_s", 0.0))
-            end_s = float(s[1]) if isinstance(s, (list, tuple)) else float(s.get("end_s", 0.0))
-            axes[1, 1].axvspan(start_s, end_s, color="#ffffff", alpha=0.25)
-        axes[1, 1].set_xlabel("REFERENCE TIME (S)", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[1, 1].set_ylabel("LOCAL COST", color="#00ffff", fontsize=8, fontfamily="monospace")
-        axes[1, 1].set_title("PER-FRAME MISMATCH COST", color="#00ffff", fontsize=9.5, fontfamily="monospace", fontweight="bold")
-        axes[1, 1].legend(loc="upper right", facecolor="#000000", edgecolor="#00ffff", labelcolor="#00ffff", fontsize=7.5)
-        axes[1, 1].grid(True, linestyle=":", alpha=0.25, color="#00ffff")
-
-        plt.savefig(out_png, dpi=120, facecolor="#000000")
-        plt.close(fig)
-        return str(out_png)
-    except Exception as e:
-        print(f"Error creating 2-color DTW figure: {e}")
+def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
+    """Generate subtle horizontal bar chart for top-3 verse log-likelihoods."""
+    if not top3:
         return None
 
+    fig, ax = plt.subplots(figsize=(6, 2.6), constrained_layout=True)
+    fig.patch.set_facecolor(DARK_BG)
+    ax.set_facecolor(DARK_BG)
 
-def create_top3_chart(top3: List[Tuple[str, float]]) -> str:
-    """Create a minimal styled Matplotlib bar chart for top candidate likelihoods."""
-    fig, ax = plt.subplots(figsize=(6, 2.8), constrained_layout=True)
-    fig.patch.set_facecolor("#000000")
-    ax.set_facecolor("#000000")
-
-    labels = [item[0].upper() for item in top3]
+    labels = [f"Verse {item[0]}" for item in top3]
     vals = [float(item[1]) for item in top3]
 
     max_v = max(vals)
     rel_vals = [v - max_v for v in vals]
+    bar_colors = ["#38bdf8", "#0284c7", "#0369a1"][:len(top3)]
 
-    bars = ax.barh(labels[::-1], rel_vals[::-1], color="#00ffff", edgecolor="#00ffff", height=0.5)
-    ax.set_xlabel("RELATIVE LOG-LIKELIHOOD", color="#00ffff", fontfamily="monospace", fontsize=8.5)
-    ax.set_title("TOP CANDIDATE LOG-LIKELIHOODS", color="#00ffff", fontfamily="monospace", fontsize=9.5, fontweight="bold")
-    ax.tick_params(colors="#00ffff", length=2.5)
+    bars = ax.barh(labels[::-1], rel_vals[::-1], color=bar_colors[::-1], height=0.48)
+    ax.set_xlabel("Relative Log-Likelihood", color=TEXT_MUTED, fontsize=8.5)
+    ax.set_title("Top 3 Candidate Likelihoods", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+    ax.tick_params(colors=TEXT_MUTED, length=2.5)
 
     for spine in ax.spines.values():
-        spine.set_color("#00ffff")
+        spine.set_color(BORDER_RGBA)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(True, axis="x", linestyle=":", alpha=0.25, color="#00ffff")
+    ax.grid(True, axis="x", linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
     for bar, original_val in zip(bars, vals[::-1]):
         w = bar.get_width()
@@ -627,15 +723,14 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> str:
             f"{original_val:.1f}",
             va="center",
             ha="right",
-            color="#000000",
+            color=TEXT_WHITE,
             fontsize=8.5,
             fontweight="bold",
-            fontfamily="monospace",
         )
 
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_file = str(DEMO_OUT_DIR / f"top3_{int(time.time() * 1000)}.png")
-    plt.savefig(out_file, dpi=120, facecolor="#000000")
+    plt.savefig(out_file, dpi=120, facecolor=DARK_BG)
     plt.close(fig)
     return out_file
 
@@ -650,13 +745,13 @@ def handle_pronunciation(
 ) -> Tuple[str, Any, Optional[str]]:
     """Pronunciation assessment handler using DTW alignment."""
     if not learner_audio_path:
-        card = notice_html("INPUT REQUIRED", "Please record or upload learner audio to analyse.")
+        card = notice_html("Input Required", "Please record or upload learner audio to analyse.")
         return card, None, None
 
-    ref_path = DATA_DIR / f"word_{ref_word}_ref.wav"
+    ref_path = DATA_DIR / "reference" / f"{ref_word}.wav"
     if not ref_path.exists():
         ref_candidates = [
-            DATA_DIR / "reference" / f"{ref_word}.wav",
+            DATA_DIR / f"word_{ref_word}_ref.wav",
             DATA_DIR / f"{ref_word}_ref.wav",
         ]
         found = False
@@ -670,7 +765,7 @@ def handle_pronunciation(
             if matches:
                 ref_path = matches[0]
             else:
-                card = notice_html("FILE NOT FOUND", f"Reference template for '{html.escape(ref_word)}' is missing.")
+                card = notice_html("File Not Found", f"Reference template for '{html.escape(ref_word)}' is missing.")
                 return card, None, None
 
     try:
@@ -679,7 +774,7 @@ def handle_pronunciation(
             str(learner_audio_path),
         )
     except Exception as exc:
-        card = notice_html("SCORING FAILURE", html.escape(str(exc)))
+        card = notice_html("Scoring Failure", html.escape(str(exc)))
         return card, None, None
 
     raw_sim = float(result.get("similarity", 0.0))
@@ -717,26 +812,26 @@ def handle_verse_recognition(
     """Verse recognition handler with ranking and confidence evaluation."""
     empty_chart = None
     if not audio_path:
-        card = notice_html("INPUT REQUIRED", "Please record or upload recitation audio to analyse.")
+        card = notice_html("Input Required", "Please record or upload recitation audio to analyse.")
         return card, empty_chart, [], None
 
     try:
         bundle = get_bundle()
     except Exception as exc:
-        card = notice_html("MODEL LOADING ERROR", html.escape(str(exc)))
+        card = notice_html("Model Loading Error", html.escape(str(exc)))
         return card, empty_chart, [], None
 
     try:
         ranked, margin = hmm_predict(audio_path, bundle=bundle)
     except Exception as exc:
-        card = notice_html("RECOGNITION FAILURE", html.escape(str(exc)))
+        card = notice_html("Recognition Failure", html.escape(str(exc)))
         return card, empty_chart, [], None
 
     top_verse, top_loglik = ranked[0]
     is_low_conf = margin < LOW_CONFIDENCE_THRESHOLD
 
     card = verse_card_html(
-        predicted=f"VERSE {top_verse}",
+        predicted=f"Verse {top_verse}",
         margin=margin,
         is_low_confidence=is_low_conf,
         top_loglik=top_loglik,
@@ -744,7 +839,7 @@ def handle_verse_recognition(
 
     top3 = ranked[:3]
     chart_plot = create_top3_chart(top3)
-    table_data = [[f"VERSE {v}", round(float(ll), 2)] for v, ll in ranked]
+    table_data = [[f"Verse {v}", round(float(ll), 2)] for v, ll in ranked]
 
     cm_img = plot_data_confusion_matrix()
     return card, chart_plot, table_data, cm_img
@@ -762,13 +857,35 @@ def load_cached_video_assets():
         "scene_motion_maps": [],
     }
 
-    tr_vid = list(OUTPUTS_DIR.glob("*tracked*.mp4"))
-    if tr_vid:
-        assets["tracked_video"] = ensure_faststart_video(tr_vid[0])
+    # Discover faststart summary video
+    sum_candidates = [
+        OUTPUTS_DIR / "input_summary_faststart.mp4",
+        DEMO_OUT_DIR / "input_summary_faststart.mp4",
+        OUTPUTS_DIR / "input_summary.mp4",
+    ]
+    for sc in sum_candidates:
+        if sc.exists() and sc.stat().st_size > 0:
+            assets["summary_video"] = ensure_faststart_video(sc)
+            break
+    if not assets["summary_video"]:
+        sum_glob = list(OUTPUTS_DIR.glob("*summary*.mp4"))
+        if sum_glob:
+            assets["summary_video"] = ensure_faststart_video(sum_glob[0])
 
-    sum_vid = list(OUTPUTS_DIR.glob("*summary*.mp4"))
-    if sum_vid:
-        assets["summary_video"] = ensure_faststart_video(sum_vid[0])
+    # Discover faststart tracked video
+    tr_candidates = [
+        OUTPUTS_DIR / "input_tracked_faststart.mp4",
+        DEMO_OUT_DIR / "input_tracked_faststart.mp4",
+        OUTPUTS_DIR / "input_tracked.mp4",
+    ]
+    for tc in tr_candidates:
+        if tc.exists() and tc.stat().st_size > 0:
+            assets["tracked_video"] = ensure_faststart_video(tc)
+            break
+    if not assets["tracked_video"]:
+        tr_glob = list(OUTPUTS_DIR.glob("*tracked*.mp4"))
+        if tr_glob:
+            assets["tracked_video"] = ensure_faststart_video(tr_glob[0])
 
     kf_files = sorted(list(OUTPUTS_DIR.glob("*keyframe*.png")) + list(OUTPUTS_DIR.glob("keyframes/*.png")))
     assets["keyframes"] = [str(p) for p in kf_files]
@@ -817,18 +934,18 @@ def get_hero_stats() -> Tuple[int, int, str]:
 
 
 def build_app() -> gr.Blocks:
-    """Build the styled Gradio tabbed application in strict Black and Cyan."""
+    """Build the styled Gradio tabbed application."""
     ref_words = get_reference_words()
     default_word = ref_words[0] if ref_words else "krishna"
     verse_count, scene_count, duration_str = get_hero_stats()
 
-    demo = gr.Blocks(title="Speech and Video Processing Terminal")
+    demo = gr.Blocks(title="Speech and Video Processing")
 
     with demo:
         gr.HTML(
             hero_html(
                 title="Speech and Video Processing",
-                subtitle="Discrete Acoustic Alignment, Gaussian HMM Classification, and Computer Vision",
+                subtitle="Discrete acoustic modeling, DTW alignment, and video motion intelligence",
                 chips=[
                     ("HMM Models", f"{verse_count} Verses"),
                     ("DTW Alignment", "Cosine Distance"),
@@ -843,11 +960,11 @@ def build_app() -> gr.Blocks:
             with gr.TabItem("Pronunciation"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("#### INPUT AUDIO CONFIGURATION")
+                        gr.Markdown("#### Learner Audio Input")
                         ref_dropdown = gr.Dropdown(
                             choices=ref_words,
                             value=default_word,
-                            label="REFERENCE TEMPLATE WORD",
+                            label="Reference Word",
                             info="Select the Sanskrit lexical reference template",
                         )
 
@@ -861,7 +978,7 @@ def build_app() -> gr.Blocks:
                                 "Bundled: shiva_1.wav (Negative Control)",
                             ],
                             value="Select a preset sample...",
-                            label="QUICK PRESET AUDIO LOADER",
+                            label="Quick Preset Audio Loader",
                             info="Direct one-click test sample loader (bypasses browser mic permissions)",
                         )
 
@@ -869,22 +986,22 @@ def build_app() -> gr.Blocks:
                             sources=["microphone", "upload"],
                             type="filepath",
                             format="wav",
-                            label="LEARNER AUDIO (MICROPHONE OR UPLOAD WAV)",
+                            label="Learner Audio (Microphone or Upload)",
                         )
                         gr.Markdown(
-                            "<small style='color:#00ffff;'>NOTE: For microphone access, open in browser via <code>http://localhost:7861</code>. If browser mic is unavailable, use Upload or Quick Preset Loader above.</small>"
+                            "<small style='color:#38bdf8;'>Microphone note: Open in browser via <code>http://localhost:7861</code> to enable browser mic permissions. Or select from Quick Preset Loader above.</small>"
                         )
 
                         with gr.Row():
-                            pron_analyze_btn = gr.Button("ANALYSE PRONUNCIATION", variant="primary")
-                            pron_demo_btn = gr.Button("LOAD DEFAULT SAMPLE", variant="secondary")
+                            pron_analyze_btn = gr.Button("Analyse Pronunciation", variant="primary")
+                            pron_demo_btn = gr.Button("Load Demo Sample", variant="secondary")
 
                     with gr.Column(scale=1):
-                        gr.Markdown("#### ALIGNMENT ANALYSIS READOUT")
+                        gr.Markdown("#### Alignment Analysis")
                         pron_card_html = gr.HTML(
                             score_card_html(
                                 similarity=0.0,
-                                verdict="AWAITING INPUT",
+                                verdict="Awaiting Input",
                                 acoustic_cost=0.0,
                                 duration_ratio=0.0,
                                 flagged_count=0,
@@ -893,10 +1010,10 @@ def build_app() -> gr.Blocks:
                         pron_flagged_table = gr.Dataframe(
                             headers=["Start Time (s)", "End Time (s)", "Mean Cost"],
                             datatype=["number", "number", "number"],
-                            label="FLAGGED MISMATCH SEGMENTS (THRESHOLD >= 0.40, >= 30 MS)",
+                            label="Flagged Mismatch Segments (Threshold >= 0.40, >= 30 ms)",
                         )
                         pron_plot_output = gr.Image(
-                            label="4-PANEL DTW ALIGNMENT FIGURE",
+                            label="4-Panel DTW Alignment Figure",
                             type="filepath",
                             elem_classes=["fig"],
                         )
@@ -940,7 +1057,7 @@ def build_app() -> gr.Blocks:
             with gr.TabItem("Verse Recognition"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("#### RECITATION INPUT CONFIGURATION")
+                        gr.Markdown("#### Recitation Input")
                         verse_preset_dropdown = gr.Dropdown(
                             choices=[
                                 "Select a preset verse take...",
@@ -950,7 +1067,7 @@ def build_app() -> gr.Blocks:
                                 "Bundled: Verse 9.26 (take_3.wav)",
                             ],
                             value="Select a preset verse take...",
-                            label="QUICK PRESET RECITATION LOADER",
+                            label="Quick Preset Recitation Loader",
                             info="Direct one-click recitation take loader",
                         )
 
@@ -958,21 +1075,21 @@ def build_app() -> gr.Blocks:
                             sources=["microphone", "upload"],
                             type="filepath",
                             format="wav",
-                            label="RECITATION AUDIO (MICROPHONE OR UPLOAD WAV)",
+                            label="Recitation Audio (Microphone or Upload)",
                         )
                         gr.Markdown(
-                            "<small style='color:#00ffff;'>NOTE: For microphone access, open in browser via <code>http://localhost:7861</code>. If browser mic is unavailable, use Upload or Quick Preset Loader above.</small>"
+                            "<small style='color:#38bdf8;'>Microphone note: Open in browser via <code>http://localhost:7861</code> to enable browser mic permissions. Or select from Quick Preset Loader above.</small>"
                         )
 
                         with gr.Row():
-                            verse_analyze_btn = gr.Button("CLASSIFY VERSE", variant="primary")
-                            verse_demo_btn = gr.Button("LOAD DEFAULT SAMPLE", variant="secondary")
+                            verse_analyze_btn = gr.Button("Classify Verse", variant="primary")
+                            verse_demo_btn = gr.Button("Load Demo Sample", variant="secondary")
 
                     with gr.Column(scale=1):
-                        gr.Markdown("#### CLASSIFICATION READOUT")
+                        gr.Markdown("#### Classification Output")
                         verse_card = gr.HTML(
                             verse_card_html(
-                                predicted="AWAITING INPUT",
+                                predicted="Awaiting Input",
                                 margin=0.0,
                                 is_low_confidence=False,
                                 top_loglik=0.0,
@@ -982,19 +1099,19 @@ def build_app() -> gr.Blocks:
                             value=str(DEMO_OUT_DIR / "default_top3.png")
                             if (DEMO_OUT_DIR / "default_top3.png").exists()
                             else None,
-                            label="TOP CANDIDATE RELATIVE LOG-LIKELIHOODS",
+                            label="Top 3 Candidate Relative Log-Likelihoods",
                             type="filepath",
                             elem_classes=["fig"],
                         )
                         verse_rank_table = gr.Dataframe(
                             headers=["Verse Identifier", "Log-Likelihood"],
                             datatype=["str", "number"],
-                            label="CANDIDATE MODEL LOG-LIKELIHOODS",
+                            label="Candidate Model Log-Likelihoods",
                         )
-                        with gr.Accordion("HELD-OUT TEST CONFUSION MATRIX", open=False):
+                        with gr.Accordion("Held-Out Test Confusion Matrix", open=False):
                             verse_conf_img = gr.Image(
                                 value=plot_data_confusion_matrix(),
-                                label="HMM 4-FOLD CROSS VALIDATION CONFUSION MATRIX",
+                                label="HMM 4-Fold Cross Validation Confusion Matrix",
                                 type="filepath",
                                 elem_classes=["fig"],
                             )
@@ -1035,121 +1152,126 @@ def build_app() -> gr.Blocks:
             with gr.TabItem("Video Analysis"):
                 video_assets = load_cached_video_assets()
 
+                gr.Markdown("#### Motion-Weighted Video Summary (60 to 90 s)")
+                if video_assets["summary_video"]:
+                    gr.Video(
+                        value=video_assets["summary_video"],
+                        label="Chronological Motion-Weighted Summary (H.264 Faststart)",
+                        height=340,
+                        autoplay=False,
+                        interactive=False,
+                        buttons=["download"],
+                    )
+                else:
+                    gr.HTML(
+                        notice_html(
+                            "Asset Missing",
+                            "Summary video missing. Generate via: <code>python -m video.summarize data/video/input.mp4</code>",
+                        )
+                    )
+
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("#### 60 TO 90 SECOND MOTION SUMMARY")
-                        if video_assets["summary_video"]:
-                            gr.Video(
-                                value=video_assets["summary_video"],
-                                label="CHRONOLOGICAL MOTION SUMMARY",
-                                height=240,
-                                autoplay=False,
-                            )
-                        else:
-                            gr.HTML(
-                                notice_html(
-                                    "ASSET MISSING",
-                                    "Summary video missing. Generate via: <code>python -m video.summarize data/video/input.mp4</code>",
-                                )
-                            )
-
-                        gr.Markdown("#### SCENE BOUNDARY TIMELINE (PLOTTED FROM SCENES.JSON)")
+                        gr.Markdown("#### Scene Boundary Timeline (scenes.json)")
                         if video_assets["timeline"]:
                             gr.Image(
                                 value=video_assets["timeline"],
-                                label="SCENE TIMELINE & DURATION DISTRIBUTION",
+                                label="Scene Timeline & Duration Distribution",
                                 type="filepath",
                                 elem_classes=["fig"],
                             )
                         else:
                             gr.HTML(
                                 notice_html(
-                                    "ASSET MISSING",
+                                    "Asset Missing",
                                     "Scene timeline missing. Generate via: <code>python -m video.scenes data/video/input.mp4</code>",
                                 )
                             )
 
-                        gr.Markdown("#### OPTICAL FLOW DENSITY & MOTION OVER TIME (PLOTTED FROM MOTION.JSON)")
+                        gr.Markdown("#### Optical Flow Density & Motion Over Time (motion.json)")
                         if video_assets["motion_map"]:
                             gr.Image(
                                 value=video_assets["motion_map"],
-                                label="ACCUMULATED MOTION HEATMAP & TEMPORAL PROFILE",
+                                label="Accumulated Motion Heatmap & Temporal Profile",
                                 type="filepath",
                                 elem_classes=["fig"],
                             )
                         else:
                             gr.HTML(
                                 notice_html(
-                                    "ASSET MISSING",
+                                    "Asset Missing",
                                     "Motion map missing. Generate via: <code>python -m video.motion data/video/input.mp4</code>",
                                 )
                             )
 
                     with gr.Column(scale=1):
-                        gr.Markdown("#### PEDESTRIAN TRACKING DEMO (WINDOW: 1405S TO 1410S)")
+                        gr.Markdown("#### Pedestrian Tracking Demo (Window: 1405 s to 1410 s)")
                         if video_assets["tracked_video"]:
                             gr.Video(
                                 value=video_assets["tracked_video"],
-                                label="YOLOV8N + BYTETRACK (TRACKS >= 1.0S)",
-                                height=240,
+                                label="YOLOv8n + ByteTrack (Tracks >= 1.0 s, H.264 Faststart)",
+                                height=280,
                                 autoplay=False,
+                                interactive=False,
+                                buttons=["download"],
                             )
                         else:
                             gr.HTML(
                                 notice_html(
-                                    "ASSET MISSING",
+                                    "Asset Missing",
                                     "Tracked video missing. Generate via: <code>python -m video.track data/video/input.mp4 --start 1405 --duration 5</code>",
                                 )
                             )
 
-                        gr.Markdown("#### TRACKING TRAJECTORY & KINEMATICS (PLOTTED FROM TRACKS.JSON)")
+                        gr.Markdown("#### Tracking Trajectory & Kinematics (tracks.json)")
                         if video_assets["trajectories"]:
                             gr.Image(
                                 value=video_assets["trajectories"],
-                                label="SPATIAL PATH & KINEMATIC SPEED PROFILE",
+                                label="Spatial Path & Kinematic Speed Profile",
                                 type="filepath",
                                 elem_classes=["fig"],
                             )
                         else:
                             gr.HTML(
                                 notice_html(
-                                    "ASSET MISSING",
+                                    "Asset Missing",
                                     "Trajectory plot missing. Generate via: <code>python -m video.track data/video/input.mp4 --start 1405 --duration 5</code>",
                                 )
                             )
 
-                        gr.Markdown("#### DIVERSE KEYFRAMES GALLERY")
-                        if video_assets["keyframes"]:
-                            gr.Gallery(
-                                value=video_assets["keyframes"],
-                                label="SELECTED KEYFRAMES (DIVERSITY FILTERED)",
-                                columns=4,
-                                rows=3,
-                                object_fit="contain",
-                                height="auto",
-                            )
-                        else:
-                            gr.HTML(
-                                notice_html(
-                                    "ASSET MISSING",
-                                    "Keyframes missing. Generate via: <code>python -m video.keyframes data/video/input.mp4</code>",
-                                )
-                            )
+                gr.Markdown("#### Diverse Keyframe Gallery")
+                if video_assets["keyframes"]:
+                    gr.Gallery(
+                        value=video_assets["keyframes"],
+                        label="Selected Keyframes (Diversity Filtered)",
+                        columns=6,
+                        object_fit="contain",
+                        elem_classes=["fig"],
+                        height="auto",
+                    )
+                else:
+                    gr.HTML(
+                        notice_html(
+                            "Asset Missing",
+                            "Keyframes missing. Generate via: <code>python -m video.keyframes data/video/input.mp4</code>",
+                        )
+                    )
 
-                with gr.Accordion("PER-SCENE MOTION HEATMAPS (TOP 6 ACTIVE SCENES)", open=False):
+                with gr.Accordion("Per-Scene Motion Heatmaps (Top 6 Active Scenes)", open=False):
                     if video_assets["scene_motion_maps"]:
                         gr.Gallery(
                             value=video_assets["scene_motion_maps"],
-                            label="PER-SCENE MOTION MAPS",
+                            label="Per-Scene Motion Maps",
                             columns=3,
                             rows=2,
                             object_fit="contain",
+                            elem_classes=["fig"],
                             height="auto",
                         )
                     else:
                         gr.HTML(
                             notice_html(
-                                "ASSET MISSING",
+                                "Asset Missing",
                                 "Per-scene motion maps missing. Generate via: <code>python -m video.motion data/video/input.mp4</code>",
                             )
                         )
@@ -1214,7 +1336,7 @@ This integrated demonstration environment unites two multimedia processing pipel
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Speech and Video Processing Terminal Interface")
+    parser = argparse.ArgumentParser(description="Speech and Video Processing Interface")
     parser.add_argument(
         "--port",
         type=int,
@@ -1236,7 +1358,7 @@ def main():
     else:
         selected_port = find_free_port(7860, max_attempts=50)
 
-    print(f"Starting terminal demo on:")
+    print(f"Starting demo on:")
     print(f"  Localhost (recommended for browser mic): http://localhost:{selected_port}")
     print(f"  Loopback IP:                            http://127.0.0.1:{selected_port}")
 
@@ -1246,6 +1368,7 @@ def main():
             server_name="127.0.0.1",
             server_port=selected_port,
             share=args.share,
+            allowed_paths=[str(BASE_DIR)],
             theme=make_theme(),
             css=CSS,
             js=FORCE_DARK_JS,
@@ -1255,6 +1378,7 @@ def main():
             server_name="127.0.0.1",
             server_port=selected_port,
             share=args.share,
+            allowed_paths=[str(BASE_DIR)],
         )
 
 
