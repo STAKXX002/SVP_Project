@@ -8,6 +8,8 @@ Or:
 
 import argparse
 import glob
+import html
+import json
 import os
 import subprocess
 import time
@@ -35,7 +37,17 @@ from speech.hmm_train import (
     save_bundle,
     train_all,
 )
-from watermark import TEXT
+from speech.theme import (
+    CSS,
+    FORCE_DARK_JS,
+    hero_html,
+    make_theme,
+    notice_html,
+    score_card_html,
+    stat_chips_html,
+    verse_card_html,
+)
+from video.common import load_json, media_duration
 
 DATA_DIR = Path("data")
 REF_DIR = DATA_DIR / "reference"
@@ -61,7 +73,6 @@ def get_bundle():
         except Exception as exc:
             print(f"Warning: Failed to load {DEFAULT_MODEL} ({exc}), retraining cache...")
 
-    # Create the cache if absent in untracked path
     print(f"Training HMM models from {DEFAULT_DATA} and caching to {DEFAULT_MODEL}...")
     dataset = list_dataset(DEFAULT_DATA)
     feats = {v: [features_for(p) for p in paths] for v, paths in dataset.items()}
@@ -86,6 +97,8 @@ def ensure_faststart_video(mp4_path):
     if not mp4_path or not Path(mp4_path).exists():
         return None
     p = Path(mp4_path)
+    if "faststart" in p.stem:
+        return str(p)
     fast_path = p.parent / f"{p.stem}_faststart.mp4"
     if fast_path.exists() and fast_path.stat().st_mtime >= p.stat().st_mtime:
         return str(fast_path)
@@ -121,19 +134,67 @@ def get_verdict_band(similarity):
     return "Different word"
 
 
+def compute_hero_chips():
+    """Compute summary stat chips dynamically from real data without hardcoding."""
+    chips = []
+    try:
+        bundle = get_bundle()
+        n_verses = len(bundle.get("models", {}))
+        if n_verses:
+            chips.append(("Verses", str(n_verses)))
+    except Exception:
+        pass
+
+    scenes_path = CACHE_DIR / "input" / "scenes.json"
+    if scenes_path.exists():
+        try:
+            sc_data = load_json(scenes_path)
+            scenes = sc_data.get("scenes", [])
+            if scenes:
+                chips.append(("Scenes", str(len(scenes))))
+                dur_s = scenes[-1].get("end_s", 0.0) - scenes[0].get("start_s", 0.0)
+                dur_min = dur_s / 60.0
+                chips.append(("Duration", f"{dur_min:.0f} min"))
+        except Exception:
+            pass
+
+    try:
+        refs = list_references()
+        if refs:
+            chips.append(("References", str(len(refs))))
+    except Exception:
+        pass
+
+    summary_candidates = sorted(OUTPUTS_DIR.glob("*summary*.mp4"))
+    if summary_candidates:
+        try:
+            dur = media_duration(summary_candidates[0])
+            if dur > 0:
+                chips.append(("Summary", f"{dur:.1f} s"))
+        except Exception:
+            pass
+
+    return chips
+
+
 def run_pronunciation(reference_name, learner_audio):
-    """Pronunciation assessment handler."""
+    """Pronunciation assessment handler returning score card HTML, segments, and figure."""
     try:
         if not reference_name:
-            return "--", "No reference selected", [], None, "Please select a reference word."
+            card = score_card_html(0.0, "Different word", ["Please select a reference word."])
+            return card, [], None
         if not learner_audio:
-            return "--", "No audio provided", [], None, "Please record or upload audio."
+            card = score_card_html(0.0, "Different word", ["Please record or upload audio."])
+            return card, [], None
 
         ref_path = REF_DIR / reference_name
         if not ref_path.exists():
             ref_path = DATA_DIR / reference_name
         if not ref_path.exists():
-            return "--", "Reference file missing", [], None, f"Could not find {reference_name}."
+            card = score_card_html(
+                0.0, "Different word", [f"Could not find reference {reference_name}."]
+            )
+            return card, [], None
 
         t0 = time.time()
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -142,7 +203,6 @@ def run_pronunciation(reference_name, learner_audio):
 
         sim = result["similarity"]
         verdict = get_verdict_band(sim)
-        sim_text = f"{sim:.0f}%"
 
         segments = result.get("flagged_segments", [])
         if segments:
@@ -150,10 +210,17 @@ def run_pronunciation(reference_name, learner_audio):
         else:
             seg_rows = [["None", "None", "None"]]
 
-        report_text = format_report(result) + f"\n  Analysis completed in {elapsed:.2f} s"
-        return sim_text, verdict, seg_rows, result.get("figure"), report_text
+        details = [
+            f"Acoustic score: {result['acoustic_score']:.0f}%",
+            f"Duration score: {result['duration_score']:.0f}%",
+            f"Flagged segments: {len(segments)}",
+            f"Computed in: {elapsed:.2f} s",
+        ]
+        card = score_card_html(sim, verdict, details)
+        return card, seg_rows, result.get("figure")
     except Exception as exc:
-        return "--", "Error", [], None, f"Analysis failed: {type(exc).__name__}: {exc}"
+        card = score_card_html(0.0, "Error", [f"Analysis failed: {type(exc).__name__}: {exc}"])
+        return card, [], None
 
 
 def load_pronunciation_demo():
@@ -179,7 +246,6 @@ def plot_top3_verses(ranked_list):
     ax.set_title("Top-3 candidate verses by HMM log-likelihood")
     ax.grid(axis="y", linestyle="--", alpha=0.5)
 
-    # Annotate bar values
     for bar, val in zip(bars, logliks):
         offset = abs(val) * 0.015 if val < 0 else 10
         ax.text(
@@ -197,48 +263,29 @@ def plot_top3_verses(ranked_list):
 
 
 def run_verse_recognition(audio_path):
-    """Verse recognition handler."""
+    """Verse recognition handler returning verse card HTML, bar chart, and table rows."""
     try:
         if not audio_path:
-            return (
-                "No audio provided",
-                "--",
-                "Please record or upload a verse recording.",
-                None,
-                [],
-            )
+            card = verse_card_html("No audio", 0.0, True)
+            return card, None, []
 
-        t0 = time.time()
         bundle = get_bundle()
         ranked_list, margin = predict(audio_path, bundle=bundle)
-        elapsed = time.time() - t0
 
         if not ranked_list:
-            return "No prediction", "--", "Model produced no likelihoods.", None, []
+            card = verse_card_html("None", 0.0, True)
+            return card, None, []
 
         best_verse = ranked_list[0][0]
-        margin_text = f"{margin:.1f} log-lik"
+        low_conf = margin < LOW_CONFIDENCE_THRESHOLD
 
-        # Check for low confidence warning
-        if margin < LOW_CONFIDENCE_THRESHOLD:
-            warning_msg = (
-                f"**Warning: Low confidence margin** ({margin:.1f} log-likelihood difference). "
-                "The utterance may be noisy, truncated, or outside the trained vocabulary."
-            )
-        else:
-            warning_msg = f"High confidence match (margin: {margin:.1f} log-lik, computed in {elapsed:.2f} s)."
-
+        card = verse_card_html(best_verse, margin, low_conf)
         fig = plot_top3_verses(ranked_list)
         table_rows = [[v, f"{ll:.1f}"] for v, ll in ranked_list]
-        return best_verse, margin_text, warning_msg, fig, table_rows
+        return card, fig, table_rows
     except Exception as exc:
-        return (
-            "Error",
-            "--",
-            f"Recognition failed: {type(exc).__name__}: {exc}",
-            None,
-            [],
-        )
+        card = verse_card_html("Error", 0.0, True)
+        return card, None, []
 
 
 def load_verse_demo():
@@ -265,6 +312,7 @@ def discover_video_assets():
         "trajectories_img": None,
         "summary_video": None,
         "summary_msg": "",
+        "scene_motion_maps": [],
     }
 
     # 1. Scene timeline image
@@ -273,7 +321,7 @@ def discover_video_assets():
         assets["timeline_img"] = timelines[0]
     else:
         assets["timeline_msg"] = (
-            "Scene timeline image missing. Generate it using: "
+            "Scene timeline image missing. Generate using: "
             "`python -m video.scenes data/video/input.mp4`"
         )
 
@@ -284,13 +332,12 @@ def discover_video_assets():
 
     kf_files = sorted(glob.glob("outputs/keyframes/*/*.jpg"))
     if kf_files:
-        # Include top frames or curated selection
         assets["gallery_imgs"] = kf_files[:24]
     elif sheets:
-        assets["gallery_msg"] = "Per-scene keyframe images missing; contact sheet displayed below."
+        assets["gallery_msg"] = "Per-scene keyframe images missing; contact sheet displayed."
     else:
         assets["gallery_msg"] = (
-            "Keyframe assets missing. Generate them using: "
+            "Keyframe assets missing. Generate using: "
             "`python -m video.keyframes data/video/input.mp4`"
         )
 
@@ -300,33 +347,44 @@ def discover_video_assets():
         assets["motion_img"] = motion_maps[0]
     else:
         assets["motion_msg"] = (
-            "Motion map missing. Generate it using: "
+            "Motion map missing. Generate using: "
             "`python -m video.motion data/video/input.mp4`"
         )
 
     # 4. Tracked video player and trajectories
-    trajectories = sorted(glob.glob("outputs/*trajectories*.png"))
+    trajectories = [
+        p for p in sorted(glob.glob("outputs/*trajectories*.png")) if "old_bgsub" not in p
+    ]
     if trajectories:
         assets["trajectories_img"] = trajectories[0]
 
-    tracked_videos = sorted(glob.glob("outputs/*tracked*.mp4"))
+    tracked_videos = [
+        p for p in sorted(glob.glob("outputs/*tracked*.mp4")) if "_raw" not in p
+    ]
     if tracked_videos:
-        assets["tracked_video"] = ensure_faststart_video(tracked_videos[0])
+        fast = [p for p in tracked_videos if "faststart" in p]
+        chosen = fast[0] if fast else tracked_videos[0]
+        assets["tracked_video"] = ensure_faststart_video(chosen)
     else:
         assets["tracked_msg"] = (
-            "Tracked video missing. Generate it using: "
+            "Tracked video missing. Generate using: "
             "`python -m video.track data/video/input.mp4`"
         )
 
     # 5. Summary video player
     summary_videos = sorted(glob.glob("outputs/*summary*.mp4"))
     if summary_videos:
-        assets["summary_video"] = ensure_faststart_video(summary_videos[0])
+        fast = [p for p in summary_videos if "faststart" in p]
+        chosen = fast[0] if fast else summary_videos[0]
+        assets["summary_video"] = ensure_faststart_video(chosen)
     else:
         assets["summary_msg"] = (
-            "Summary video missing. Generate it using: "
+            "Summary video missing. Generate using: "
             "`python -m video.summarize data/video/input.mp4`"
         )
+
+    # 6. Per-scene motion maps
+    assets["scene_motion_maps"] = sorted(glob.glob("outputs/*motion_scene_*.png"))
 
     return assets
 
@@ -339,7 +397,6 @@ def get_confusion_matrix_path():
 
 def build_app():
     """Build the multi-tab Gradio Blocks application."""
-    # Warm up HMM bundle
     try:
         get_bundle()
     except Exception as exc:
@@ -349,21 +406,29 @@ def build_app():
     default_ref = refs[0] if refs else None
     cm_path = get_confusion_matrix_path()
     video_assets = discover_video_assets()
+    hero_chips = compute_hero_chips()
 
-    with gr.Blocks(title="Speech and Video Processing Project") as demo:
-        gr.Markdown(
-            "# Speech and Video Processing Demonstration System\n"
-            "Computer Science Undergrad Coursework | Sanskrit Speech Assessment and Video Processing"
+    gradio_major = int(gr.__version__.split(".")[0]) if hasattr(gr, "__version__") else 6
+    blocks_kwargs = {"title": "Speech and Video Processing"}
+    if gradio_major < 6:
+        blocks_kwargs.update({
+            "theme": make_theme(),
+            "css": CSS,
+            "js": FORCE_DARK_JS,
+        })
+
+    with gr.Blocks(**blocks_kwargs) as demo:
+        # Top Hero Header
+        gr.HTML(
+            hero_html(
+                title="Speech and Video Processing",
+                subtitle="Sanskrit pronunciation assessment, HMM verse recognition, and optical-flow video analysis.",
+                chips=hero_chips,
+            )
         )
-        gr.Markdown(f"<small>{TEXT}</small>")
 
         # ------------------------------------------------------------- Tab 1: Pronunciation
         with gr.Tab("Pronunciation"):
-            gr.Markdown(
-                "### Pronunciation Assessment via Dynamic Time Warping (DTW)\n"
-                "Compare a learner recording against a reference Sanskrit word using 39-dimensional MFCCs "
-                "with cepstral mean and variance normalisation."
-            )
             with gr.Row():
                 with gr.Column(scale=1):
                     ref_dropdown = gr.Dropdown(
@@ -372,46 +437,39 @@ def build_app():
                         label="Reference Word",
                         interactive=True,
                     )
-                    refresh_refs_btn = gr.Button("Refresh Reference List", size="sm")
                     learner_input = gr.Audio(
                         sources=["microphone", "upload"],
                         type="filepath",
                         label="Learner Audio (Record or Upload)",
                     )
                     with gr.Row():
-                        pron_demo_btn = gr.Button("Load demo example")
-                        pron_score_btn = gr.Button("Score Pronunciation", variant="primary")
+                        pron_score_btn = gr.Button("Analyse", variant="primary")
+                        pron_demo_btn = gr.Button("Load demo", variant="secondary")
+                    refresh_refs_btn = gr.Button(
+                        "Refresh Reference List", size="sm", variant="secondary"
+                    )
 
                 with gr.Column(scale=1):
-                    with gr.Row():
-                        sim_label = gr.Textbox(
-                            label="Similarity Score",
-                            value="--",
-                            interactive=False,
-                            scale=1,
-                        )
-                        verdict_label = gr.Textbox(
-                            label="Verdict Band",
-                            value="--",
-                            interactive=False,
-                            scale=1,
-                        )
+                    initial_details = [
+                        "Acoustic score: --",
+                        "Duration score: --",
+                        "Flagged segments: 0",
+                    ]
+                    score_card = gr.HTML(
+                        score_card_html(0.0, "Ready", initial_details),
+                        label="Score Card",
+                    )
                     segments_table = gr.Dataframe(
                         headers=["Start (s)", "End (s)", "Mean Cost"],
-                        label="Flagged Mismatch Segments (>= 30 ms above cost 0.40)",
+                        label="Flagged Mismatch Segments (min 3 frames / 30 ms above cost 0.40)",
                         interactive=False,
                     )
-                    pron_report = gr.Textbox(
-                        label="Detailed Metrics",
-                        lines=6,
+                    dtw_figure = gr.Image(
+                        label="Spectrogram Alignment, DTW Path, and Per-Frame Cost",
+                        type="filepath",
                         interactive=False,
+                        elem_classes=["fig"],
                     )
-
-            dtw_figure = gr.Image(
-                label="Spectrogram Alignment, DTW Path, and Per-Frame Cost",
-                type="filepath",
-                interactive=False,
-            )
 
             # Wiring Tab 1
             refresh_refs_btn.click(
@@ -425,15 +483,11 @@ def build_app():
             pron_score_btn.click(
                 fn=run_pronunciation,
                 inputs=[ref_dropdown, learner_input],
-                outputs=[sim_label, verdict_label, segments_table, dtw_figure, pron_report],
+                outputs=[score_card, segments_table, dtw_figure],
             )
 
         # ------------------------------------------------------------- Tab 2: Verse Recognition
         with gr.Tab("Verse recognition"):
-            gr.Markdown(
-                "### Bhagavad Gita Verse Recognition via Left-to-Right GMM-HMM\n"
-                "Classifies an audio recording into one of 9 trained Gita verses using sequence log-likelihood."
-            )
             with gr.Row():
                 with gr.Column(scale=1):
                     verse_input = gr.Audio(
@@ -442,33 +496,32 @@ def build_app():
                         label="Verse Audio (Record or Upload)",
                     )
                     with gr.Row():
-                        verse_demo_btn = gr.Button("Load demo example")
-                        verse_rec_btn = gr.Button("Recognise Verse", variant="primary")
+                        verse_rec_btn = gr.Button("Recognise", variant="primary")
+                        verse_demo_btn = gr.Button("Load demo", variant="secondary")
 
-                    with gr.Row():
-                        pred_box = gr.Textbox(
-                            label="Predicted Verse",
+                    with gr.Accordion(
+                        "Held-Out Confusion Matrix (4-Fold Cross-Validation)", open=False
+                    ):
+                        cm_image = gr.Image(
+                            value=cm_path,
+                            label="Held-Out Confusion Matrix",
+                            type="filepath",
                             interactive=False,
-                            scale=1,
+                            elem_classes=["fig"],
                         )
-                        margin_box = gr.Textbox(
-                            label="Confidence Margin (top 1 minus top 2)",
-                            interactive=False,
-                            scale=1,
-                        )
-                    confidence_msg = gr.Markdown("Ready for evaluation.")
+
+                with gr.Column(scale=1):
+                    verse_card = gr.HTML(
+                        verse_card_html("Ready", 0.0, False),
+                        label="Verse Prediction",
+                    )
+                    top3_chart = gr.Plot(
+                        label="Top-3 Verses with Log-Likelihoods",
+                        elem_classes=["fig"],
+                    )
                     verse_table = gr.Dataframe(
                         headers=["Verse", "Log-Likelihood"],
                         label="All Candidate Verses (Ranked)",
-                        interactive=False,
-                    )
-
-                with gr.Column(scale=1):
-                    top3_chart = gr.Plot(label="Top-3 Verses with Log-Likelihoods")
-                    cm_image = gr.Image(
-                        value=cm_path,
-                        label="Held-Out Confusion Matrix (4-Fold Cross-Validation)",
-                        type="filepath",
                         interactive=False,
                     )
 
@@ -480,137 +533,152 @@ def build_app():
             verse_rec_btn.click(
                 fn=run_verse_recognition,
                 inputs=verse_input,
-                outputs=[pred_box, margin_box, confidence_msg, top3_chart, verse_table],
+                outputs=[verse_card, top3_chart, verse_table],
             )
 
         # ------------------------------------------------------------- Tab 3: Video Analysis
         with gr.Tab("Video analysis"):
-            gr.Markdown(
-                "### Cached Video Analysis Pipeline\n"
-                "Displays precomputed scene segmentation, keyframes, dense optical flow, "
-                "object tracking, and automated summaries. No live 30-minute recompute is executed."
-            )
-            video_refresh_btn = gr.Button("Load demo example / Refresh Assets")
-
-            # Timeline
-            gr.Markdown("#### 1. Scene Boundary Timeline")
-            timeline_alert = gr.Markdown(
-                video_assets["timeline_msg"] if video_assets["timeline_msg"] else ""
-            )
-            timeline_img = gr.Image(
-                value=video_assets["timeline_img"],
-                label="Scene Timeline",
-                type="filepath",
-                interactive=False,
-            )
-
-            # Keyframes
-            gr.Markdown("#### 2. Extracted Keyframes")
-            kf_alert = gr.Markdown(
-                video_assets["gallery_msg"] if video_assets["gallery_msg"] else ""
-            )
-            with gr.Row():
-                sheet_img = gr.Image(
-                    value=video_assets["sheet_img"],
-                    label="Keyframes Contact Sheet",
-                    type="filepath",
+            # Summary video first and large
+            gr.Markdown("### Video Summary (60 to 90 s)")
+            if video_assets["summary_video"]:
+                summary_player = gr.Video(
+                    value=video_assets["summary_video"],
+                    label="Stitched Summary Video (H.264 Faststart)",
                     interactive=False,
-                    scale=1,
                 )
+            else:
+                gr.HTML(
+                    notice_html(
+                        "Summary video missing",
+                        "Generate using: <code>python -m video.summarize data/video/input.mp4</code>",
+                    )
+                )
+
+            # Two-column grid: scene timeline & motion map (left); tracked video & trajectory plot (right)
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("### Scene Boundary Timeline")
+                    if video_assets["timeline_img"]:
+                        timeline_img = gr.Image(
+                            value=video_assets["timeline_img"],
+                            label="Scene Timeline",
+                            type="filepath",
+                            interactive=False,
+                            elem_classes=["fig"],
+                        )
+                    else:
+                        gr.HTML(
+                            notice_html(
+                                "Scene timeline missing",
+                                "Generate using: <code>python -m video.scenes data/video/input.mp4</code>",
+                            )
+                        )
+
+                    gr.Markdown("### Optical Flow Motion Map")
+                    if video_assets["motion_img"]:
+                        motion_img = gr.Image(
+                            value=video_assets["motion_img"],
+                            label="Accumulated Motion Heatmap and Motion Curve",
+                            type="filepath",
+                            interactive=False,
+                            elem_classes=["fig"],
+                        )
+                    else:
+                        gr.HTML(
+                            notice_html(
+                                "Motion map missing",
+                                "Generate using: <code>python -m video.motion data/video/input.mp4</code>",
+                            )
+                        )
+
+                with gr.Column(scale=1):
+                    gr.Markdown("### Object Tracking (YOLOv8 + ByteTrack)")
+                    if video_assets["tracked_video"]:
+                        tracked_player = gr.Video(
+                            value=video_assets["tracked_video"],
+                            label="Tracked Video Window (1405 s to 1410 s, H.264 Faststart)",
+                            interactive=False,
+                        )
+                    else:
+                        gr.HTML(
+                            notice_html(
+                                "Tracked video missing",
+                                "Generate using: <code>python -m video.track data/video/input.mp4</code>",
+                            )
+                        )
+
+                    gr.Markdown("### Trajectory Plot")
+                    if video_assets["trajectories_img"]:
+                        trajectories_img = gr.Image(
+                            value=video_assets["trajectories_img"],
+                            label="Pedestrian Trajectories on Static Scene Frame",
+                            type="filepath",
+                            interactive=False,
+                            elem_classes=["fig"],
+                        )
+                    else:
+                        gr.HTML(
+                            notice_html(
+                                "Trajectory plot missing",
+                                "Generate using: <code>python -m video.track data/video/input.mp4</code>",
+                            )
+                        )
+
+            # Key frame gallery below
+            gr.Markdown("### Key Frames Gallery")
+            if video_assets["gallery_imgs"]:
                 kf_gallery = gr.Gallery(
                     value=video_assets["gallery_imgs"],
-                    label="Per-Scene Selected Keyframes",
+                    label="Extracted Key Frames",
+                    columns=6,
+                    object_fit="contain",
                     interactive=False,
-                    scale=1,
+                )
+            else:
+                gr.HTML(
+                    notice_html(
+                        "Keyframe assets missing",
+                        "Generate using: <code>python -m video.keyframes data/video/input.mp4</code>",
+                    )
                 )
 
-            # Motion Map
-            gr.Markdown("#### 3. Optical Flow Motion Analysis")
-            motion_alert = gr.Markdown(
-                video_assets["motion_msg"] if video_assets["motion_msg"] else ""
-            )
-            motion_img = gr.Image(
-                value=video_assets["motion_img"],
-                label="Accumulated Motion Heatmap and Motion Curve",
-                type="filepath",
-                interactive=False,
-            )
-
-            # Tracking and Summary Videos
-            with gr.Row():
-                with gr.Column(scale=1):
-                    gr.Markdown("#### 4. Object Tracking (YOLOv8 + ByteTrack)")
-                    tracked_alert = gr.Markdown(
-                        video_assets["tracked_msg"] if video_assets["tracked_msg"] else ""
-                    )
-                    tracked_video = gr.Video(
-                        value=video_assets["tracked_video"],
-                        label="Tracked Video Window (H.264 Faststart)",
-                        interactive=False,
-                    )
-                    trajectories_img = gr.Image(
-                        value=video_assets["trajectories_img"],
-                        label="Trajectory Plot",
-                        type="filepath",
-                        interactive=False,
-                    )
-
-                with gr.Column(scale=1):
-                    gr.Markdown("#### 5. Motion-Based Video Summary (60 to 90 s)")
-                    summary_alert = gr.Markdown(
-                        video_assets["summary_msg"] if video_assets["summary_msg"] else ""
-                    )
-                    summary_video = gr.Video(
-                        value=video_assets["summary_video"],
-                        label="Stitched Summary Video (H.264 Faststart)",
-                        interactive=False,
-                    )
-
-            def refresh_video_ui():
-                assets = discover_video_assets()
-                return (
-                    assets["timeline_msg"],
-                    assets["timeline_img"],
-                    assets["gallery_msg"],
-                    assets["sheet_img"],
-                    assets["gallery_imgs"],
-                    assets["motion_msg"],
-                    assets["motion_img"],
-                    assets["tracked_msg"],
-                    assets["tracked_video"],
-                    assets["trajectories_img"],
-                    assets["summary_msg"],
-                    assets["summary_video"],
+            if video_assets["sheet_img"]:
+                sheet_img = gr.Image(
+                    value=video_assets["sheet_img"],
+                    label="Keyframes Contact Sheet (Top 12 Diverse Frames)",
+                    type="filepath",
+                    interactive=False,
+                    elem_classes=["fig"],
                 )
 
-            video_refresh_btn.click(
-                fn=refresh_video_ui,
-                outputs=[
-                    timeline_alert,
-                    timeline_img,
-                    kf_alert,
-                    sheet_img,
-                    kf_gallery,
-                    motion_alert,
-                    motion_img,
-                    tracked_alert,
-                    tracked_video,
-                    trajectories_img,
-                    summary_alert,
-                    summary_video,
-                ],
-            )
+            # Per-scene motion maps in an accordion
+            with gr.Accordion("Per-Scene Motion Maps (Top 6 Active Scenes)", open=False):
+                if video_assets["scene_motion_maps"]:
+                    gr.Gallery(
+                        value=video_assets["scene_motion_maps"],
+                        label="Per-Scene Motion Heatmaps",
+                        columns=3,
+                        object_fit="contain",
+                        interactive=False,
+                    )
+                else:
+                    gr.HTML(
+                        notice_html(
+                            "Per-scene motion maps missing",
+                            "Generate using: <code>python -m video.motion data/video/input.mp4</code>",
+                        )
+                    )
 
         # ------------------------------------------------------------- Tab 4: About & Limitations
         with gr.Tab("About and limitations"):
             gr.Markdown(
                 """
-### System Architecture and Methodological Limitations
+### System Architecture
 
 This demonstration system implements speech and video processing techniques developed for
 academic evaluation.
 
-#### 1. Speech Processing Subsystem
+### Speech Processing Subsystem
 * **Feature Representation:** Audio signals are processed at 16 kHz mono. An 80 Hz Butterworth
   high-pass filter (zero-phase) eliminates low-frequency room rumble and DC offsets. Framing uses
   a 25 ms window (400 samples) with a 10 ms hop (160 samples). 13 Mel-Frequency Cepstral Coefficients
@@ -620,32 +688,34 @@ academic evaluation.
   Dynamic Time Warping (DTW) with cosine distance. The similarity metric blends 85% acoustic alignment
   and 15% duration ratio, subtracting localized mismatch penalties when consecutive frames (>= 30 ms)
   exceed the mismatch threshold (FLAG_COST = 0.40).
-* **Limitations of Pronunciation Scoring:** Uses a single reference speaker per target word. Dialectal
-  variations, accent nuances, and differing vocal tract lengths can skew cosine distances. DTW does not
-  explicitly model phonemic boundaries or subtle phonetic substitutions.
 * **Verse Recognition:** Each verse is modeled via a continuous density left-to-right Gaussian HMM.
   Model states are initialized with uniform time segmentation.
-* **Limitations of Verse Recognition:** Models are strictly speaker-dependent. The trained vocabulary
-  is restricted to 9 verses from the Bhagavad Gita. Reported cross-validation accuracy derives from
-  recordings produced by the same speaker in controlled sessions. Recognition relies on maximum
-  log-likelihood over the closed set without an explicit out-of-vocabulary rejection model.
 
-#### 2. Video Processing Subsystem
+### Video Processing Subsystem
 * **Input Video Source:** 30-minute standard-definition video (480x360 resolution, 29.97 frames per second,
   53,947 frames total). Features dynamic camera movements, panning, cuts, and pedestrian motion.
 * **Scene Detection:** Utilizes PySceneDetect adaptive thresholding combined with minimum duration
-  filtering and HSV color histogram boundary correlation to prevent over-segmentation.
+  filtering (1.5 s minimum) and HSV color histogram boundary correlation (0.85 merge threshold) to prevent over-segmentation.
 * **Keyframe Selection:** Evaluates candidate frames within scenes using Laplacian variance (sharpness)
   penalized for underexposure or saturation. Frames are greedily selected according to a blended
-  motion-duration importance metric with diversity pruning.
+  motion-duration importance metric with diversity pruning (HSV correlation <= 0.80 and separation >= 30 s).
 * **Motion Analysis:** Dense optical flow computed using the Farneback formulation at 5 samples per second.
   Global camera movement is compensated by subtracting the median flow vector across each frame pair.
 * **Object Tracking:** Primary tracker combines Ultralytics YOLOv8n object detection with ByteTrack data
   association. Background subtraction (MOG2) with Hungarian centroid assignment serves as an offline fallback.
 * **Video Summarization:** Ranks candidate sub-scene clips by motion density, selecting non-overlapping
   windows concatenated chronologically to yield a 60 to 90 second summary.
-* **Limitations of Video Processing:** Heavy camera panning and zooming challenge simple planar global
-  motion compensation. Small distant objects and crowded scenes may cause tracking ID switches or track fragmentation.
+
+### Methodological Limitations
+* **Speaker Dependence:** The continuous HMM verse models are strictly speaker-dependent. The trained
+  vocabulary is restricted to 9 verses from the Bhagavad Gita. Reported cross-validation accuracy derives
+  from recordings produced by the same speaker in controlled sessions. Recognition relies on maximum
+  log-likelihood over the closed set without an explicit out-of-vocabulary rejection model.
+* **Single Reference Speaker:** Pronunciation scoring measures DTW alignment against a single reference speaker
+  template per word. Dialectal variations and differing vocal tract lengths can skew cosine distances.
+* **Motion Compensation Limits:** Planar median flow subtraction cannot compensate for camera zoom, perspective
+  rotation, or strong parallax.
+* **Tracking Occlusions:** Small distant pedestrians and dense overlaps can cause ID switches or track fragmentation.
 """
             )
 
@@ -660,7 +730,23 @@ def main():
 
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     demo = build_app()
-    demo.launch(server_name="127.0.0.1", server_port=args.port, share=args.share)
+
+    gradio_major = int(gr.__version__.split(".")[0]) if hasattr(gr, "__version__") else 6
+    if gradio_major >= 6:
+        demo.launch(
+            server_name="127.0.0.1",
+            server_port=args.port,
+            share=args.share,
+            theme=make_theme(),
+            css=CSS,
+            js=FORCE_DARK_JS,
+        )
+    else:
+        demo.launch(
+            server_name="127.0.0.1",
+            server_port=args.port,
+            share=args.share,
+        )
 
 
 if __name__ == "__main__":
