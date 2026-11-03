@@ -108,8 +108,14 @@ def _fit_gaussian(feature_list, n_states, seed):
     start, trans = left_right_matrices(n_states)
     means, covars = uniform_segment_stats(feature_list, n_states)
     model = GaussianHMM(
-        n_components=n_states, covariance_type="diag", min_covar=1e-2,
-        n_iter=20, tol=1e-2, init_params="", params="stmc", random_state=seed,
+        n_components=n_states,
+        covariance_type="diag",
+        min_covar=1e-2,
+        n_iter=20,
+        tol=1e-2,
+        init_params="",
+        params="stmc",
+        random_state=seed,
     )
     model.startprob_ = start
     model.transmat_ = trans
@@ -124,8 +130,15 @@ def _fit_mixture(feature_list, n_states, n_mix, seed):
     lengths = [len(f) for f in feature_list]
     start, trans = left_right_matrices(n_states)
     model = GMMHMM(
-        n_components=n_states, n_mix=n_mix, covariance_type="diag", min_covar=5e-2,
-        n_iter=15, tol=1e-2, init_params="mcw", params="stmcw", random_state=seed,
+        n_components=n_states,
+        n_mix=n_mix,
+        covariance_type="diag",
+        min_covar=5e-2,
+        n_iter=15,
+        tol=1e-2,
+        init_params="mcw",
+        params="stmcw",
+        random_state=seed,
     )
     model.startprob_ = start
     model.transmat_ = trans
@@ -159,8 +172,10 @@ def train_verse(feature_list, n_states=None, n_mix=1, seed=0):
                 pass
         model, X, lengths = _fit_gaussian(feature_list, n_states, seed)
         if not _healthy(model, X, lengths):
-            raise RuntimeError("HMM training produced a non-finite likelihood; "
-                               "try fewer states with --states or check the recordings")
+            raise RuntimeError(
+                "HMM training produced a non-finite likelihood; "
+                "try fewer states with --states or check the recordings"
+            )
         return model
 
 
@@ -196,8 +211,23 @@ def load_bundle(path=DEFAULT_MODEL):
         return pickle.load(fh)
 
 
+def predict(wav, model_path=DEFAULT_MODEL, bundle=None):
+    """Predict verse for an audio file.
+
+    Returns (ranked_list, margin) where ranked_list is [(verse, loglik), ...]
+    sorted by total log-likelihood in descending order, and margin is top1 - top2 log-likelihood.
+    """
+    if bundle is None:
+        bundle = load_bundle(model_path)
+    feats = features_for(wav)
+    ranked = rank(bundle["models"], feats)
+    ranked_list = [(verse, ll) for verse, ll, _ in ranked]
+    margin = (ranked[0][1] - ranked[1][1]) if len(ranked) > 1 else float("nan")
+    return ranked_list, margin
+
+
 def classify_file(wav_path, bundle):
-    """Used by the Gradio app. Returns (best_verse, ranked list, margin per frame)."""
+    """Used by the Gradio app and legacy callers. Returns (best_verse, ranked list, margin per frame)."""
     feats = features_for(wav_path)
     ranked = rank(bundle["models"], feats)
     margin = ranked[0][2] - ranked[1][2] if len(ranked) > 1 else float("nan")
@@ -241,8 +271,14 @@ def plot_confusion(verses, cm, acc, out_path):
     ax.set_title(f"Verse recognition, held-out accuracy {100 * acc:.1f}%")
     for i in range(len(verses)):
         for j in range(len(verses)):
-            ax.text(j, i, cm[i, j], ha="center", va="center",
-                    color="white" if cm[i, j] > cm.max() / 2 else "black")
+            ax.text(
+                j,
+                i,
+                cm[i, j],
+                ha="center",
+                va="center",
+                color="white" if cm[i, j] > cm.max() / 2 else "black",
+            )
     fig.colorbar(im, ax=ax)
     fig.tight_layout()
     out_path = Path(out_path)
@@ -260,7 +296,12 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("--data", default=str(DEFAULT_DATA))
         p.add_argument("--states", type=int, default=None, help="fixed number of HMM states")
-        p.add_argument("--mix", type=int, default=1, help="Gaussians per state (1 is the stable default)")
+        p.add_argument(
+            "--mix",
+            type=int,
+            default=1,
+            help="Gaussians per state (1 is the stable default)",
+        )
         if name == "train":
             p.add_argument("--model", default=str(DEFAULT_MODEL))
         else:
@@ -277,7 +318,10 @@ def main():
         dataset = list_dataset(args.data)
         feats = {v: [features_for(p) for p in paths] for v, paths in dataset.items()}
         for v, fs in feats.items():
-            print(f"verse {v}: {len(fs)} recordings, {auto_states(fs) if args.states is None else args.states} states")
+            print(
+                f"verse {v}: {len(fs)} recordings, "
+                f"{auto_states(fs) if args.states is None else args.states} states"
+            )
         t0 = time.time()
         models = train_all(feats, args.states, args.mix)
         path = save_bundle(models, args.model)
@@ -292,10 +336,11 @@ def main():
 
     elif args.cmd == "predict":
         bundle = load_bundle(args.model)
-        best, ranked, margin = classify_file(args.wav, bundle)
-        print(f"predicted verse: {best}   (margin to runner-up {margin:.2f} per frame)")
-        for verse, ll, per_frame in ranked:
-            print(f"  {verse:10s} log-lik {ll:12.1f}   per frame {per_frame:8.3f}")
+        ranked_list, margin = predict(args.wav, bundle=bundle)
+        best = ranked_list[0][0]
+        print(f"predicted verse: {best}   (margin to runner-up {margin:.2f} log-lik)")
+        for verse, ll in ranked_list:
+            print(f"  {verse:10s} log-lik {ll:12.1f}")
 
 
 if __name__ == "__main__":
