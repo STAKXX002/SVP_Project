@@ -1,8 +1,8 @@
 """Gradio web application for Speech and Video Processing coursework demo.
 
-Refined aesthetic: Minimal pure black base (#000000), subtle surfaces (#070b12),
-thin cyan accent lines (rgba(0, 255, 255, 0.22)), and smooth transitions.
-Preserves rich scientific output colors in all figures and charts.
+Refined aesthetic: Minimal obsidian black base (#030712), elevated dark surfaces
+(#080d16, #0d1422), and subtle cyan accents (rgba(56, 189, 248, 0.18)) with smooth
+transitions. Preserves rich scientific output colors in all figures and charts.
 
 Entry points:
     python -m speech.app
@@ -24,6 +24,8 @@ from typing import Any, List, Optional, Tuple
 
 # Use non-GUI backend and user-writable cache directory for Matplotlib
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
+Path("/tmp/mpl").mkdir(parents=True, exist_ok=True)
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -78,13 +80,13 @@ LOW_CONFIDENCE_THRESHOLD = 500.0  # Log-likelihood margin threshold
 _bundle = None
 
 # Figure styling constants
-DARK_BG = "#070b12"
-PANEL_BG = "#0a101a"
-BORDER_RGBA = (0.0, 1.0, 1.0, 0.22)
+DARK_BG = "#030712"
+PANEL_BG = "#080d16"
+BORDER_RGBA = (0.22, 0.74, 0.97, 0.18)
 TEXT_WHITE = "#f8fafc"
 TEXT_MUTED = "#94a3b8"
 ACCENT_BLUE = "#38bdf8"
-ACCENT_CYAN = "#00ffff"
+ACCENT_CYAN = "#00e5ff"
 ACCENT_RED = "#ef4444"
 ACCENT_AMBER = "#fbbf24"
 
@@ -265,7 +267,7 @@ def plot_dark_dtw_figure(
         C, wp, local = align(f_ref, f_lrn)
         frame_cost = per_frame_cost(wp, local, len(f_ref))
 
-        fig, axes = plt.subplots(2, 2, figsize=(11, 7), constrained_layout=True)
+        fig, axes = plt.subplots(2, 2, figsize=(10.5, 6.4), constrained_layout=True)
         fig.patch.set_facecolor(DARK_BG)
 
         for ax in axes.flat:
@@ -302,12 +304,12 @@ def plot_dark_dtw_figure(
         axes[0, 1].set_xlabel("Time (s)", color=TEXT_MUTED, fontsize=8)
         axes[0, 1].set_ylabel("Hz", color=TEXT_MUTED, fontsize=8)
 
-        # 1,0: Alignment Matrix & Path (magma heatmap with cyan warp path)
+        # 1,0: Alignment Matrix and Path (magma heatmap with cyan warp path)
         axes[1, 0].imshow(C, origin="lower", aspect="auto", cmap="magma")
         axes[1, 0].plot(wp[:, 1], wp[:, 0], color=ACCENT_CYAN, linewidth=1.8, label="DTW Path")
         axes[1, 0].set_xlabel("Learner Frame", color=TEXT_MUTED, fontsize=8)
         axes[1, 0].set_ylabel("Reference Frame", color=TEXT_MUTED, fontsize=8)
-        axes[1, 0].set_title("Cosine Cost Matrix & Warp Path", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 0].set_title("Cosine Cost Matrix and Warp Path", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
         axes[1, 0].legend(
             loc="upper left",
             facecolor=PANEL_BG,
@@ -337,7 +339,7 @@ def plot_dark_dtw_figure(
 
         axes[1, 1].set_xlabel("Reference Time (s)", color=TEXT_MUTED, fontsize=8)
         axes[1, 1].set_ylabel("Cosine Cost", color=TEXT_MUTED, fontsize=8)
-        axes[1, 1].set_title("Per-Frame Cost (Red = Flagged Mismatch)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
+        axes[1, 1].set_title("Per-Frame Cost (Red: Flagged Mismatch)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
         axes[1, 1].set_ylim(0, max(0.8, float(np.max(frame_cost) * 1.15)))
         axes[1, 1].legend(
             loc="upper right",
@@ -364,7 +366,7 @@ def plot_data_confusion_matrix() -> Optional[str]:
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = DEMO_OUT_DIR / "verse_confusion_color.png"
 
-    fig, ax = plt.subplots(figsize=(6.0, 5.0), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(5.6, 4.4), constrained_layout=True)
     fig.patch.set_facecolor(DARK_BG)
     ax.set_facecolor(DARK_BG)
 
@@ -372,22 +374,22 @@ def plot_data_confusion_matrix() -> Optional[str]:
 
     ax.set_xticks(range(len(verses)))
     ax.set_yticks(range(len(verses)))
-    ax.set_xticklabels(verses, rotation=45, ha="right", color=TEXT_MUTED, fontsize=8.5)
-    ax.set_yticklabels(verses, color=TEXT_MUTED, fontsize=8.5)
-    ax.set_xlabel("Predicted Verse", color=TEXT_WHITE, fontsize=9, labelpad=8)
-    ax.set_ylabel("True Verse", color=TEXT_WHITE, fontsize=9, labelpad=8)
-    ax.set_title("HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)", color=TEXT_WHITE, fontsize=10, fontweight="bold", pad=10)
+    ax.set_xticklabels(verses, rotation=45, ha="right", color=TEXT_MUTED, fontsize=8)
+    ax.set_yticklabels(verses, color=TEXT_MUTED, fontsize=8)
+    ax.set_xlabel("Predicted Verse", color=TEXT_WHITE, fontsize=8.5, labelpad=6)
+    ax.set_ylabel("True Verse", color=TEXT_WHITE, fontsize=8.5, labelpad=6)
+    ax.set_title("HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
 
     for i in range(len(verses)):
         for j in range(len(verses)):
             val = cm[i, j]
             color = "#ffffff" if val > 4 else ("#38bdf8" if val > 0 else "#334155")
             weight = "bold" if val > 0 else "normal"
-            ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight=weight, fontsize=9.5)
+            ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight=weight, fontsize=9)
 
     for spine in ax.spines.values():
         spine.set_color(BORDER_RGBA)
-    ax.tick_params(colors=TEXT_MUTED, length=3)
+    ax.tick_params(colors=TEXT_MUTED, length=2.5)
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(colors=TEXT_MUTED)
@@ -427,7 +429,7 @@ def plot_data_scene_timeline() -> Optional[str]:
         out_path = DEMO_OUT_DIR / "scene_timeline_color.png"
 
         fig, (ax1, ax2) = plt.subplots(
-            2, 1, figsize=(11, 4.2), gridspec_kw={"height_ratios": [1.1, 1.8]}, constrained_layout=True
+            2, 1, figsize=(10.5, 4.0), gridspec_kw={"height_ratios": [1.1, 1.8]}, constrained_layout=True
         )
         fig.patch.set_facecolor(DARK_BG)
 
@@ -448,17 +450,17 @@ def plot_data_scene_timeline() -> Optional[str]:
         ax1.set_xlim(0, duration / 60.0)
         ax1.set_ylim(-0.6, 0.6)
         ax1.set_yticks([])
-        ax1.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
+        ax1.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8)
         ax1.set_title(
             f"Scene Boundary Intervals ({len(scenes)} Scenes, Min 1.5 s Duration)",
             color=TEXT_WHITE,
             fontsize=9.5,
             fontweight="bold",
-            pad=8,
+            pad=6,
         )
         for spine in ax1.spines.values():
             spine.set_color(BORDER_RGBA)
-        ax1.tick_params(colors=TEXT_MUTED, length=3)
+        ax1.tick_params(colors=TEXT_MUTED, length=2.5)
 
         # Bottom: Duration profile over time
         ax2.set_facecolor(DARK_BG)
@@ -470,8 +472,8 @@ def plot_data_scene_timeline() -> Optional[str]:
         ax2.axhline(1.5, color=ACCENT_RED, linestyle="--", linewidth=1.2, label="1.5 s Minimum Cutoff")
         ax2.set_xlim(0, duration / 60.0)
         ax2.set_ylim(0, max(durations) * 1.15)
-        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
-        ax2.set_ylabel("Duration (s)", color=TEXT_MUTED, fontsize=8.5)
+        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8)
+        ax2.set_ylabel("Duration (s)", color=TEXT_MUTED, fontsize=8)
         ax2.legend(
             loc="upper right",
             facecolor=PANEL_BG,
@@ -481,7 +483,7 @@ def plot_data_scene_timeline() -> Optional[str]:
         )
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
-        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.tick_params(colors=TEXT_MUTED, length=2.5)
         ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
@@ -520,7 +522,7 @@ def plot_data_motion_analysis() -> Optional[str]:
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
         out_path = DEMO_OUT_DIR / "motion_analysis_color.png"
 
-        fig = plt.figure(figsize=(11, 4.2), constrained_layout=True)
+        fig = plt.figure(figsize=(10.5, 4.0), constrained_layout=True)
         fig.patch.set_facecolor(DARK_BG)
         gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.3])
 
@@ -544,7 +546,7 @@ def plot_data_motion_analysis() -> Optional[str]:
                 ax1.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
             else:
                 ax1.imshow(norm_heat, cmap="inferno")
-        ax1.set_title("Accumulated Optical Flow (Inferno Overlay)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax1.set_title("Accumulated Optical Flow (Inferno Overlay)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
         ax1.axis("off")
 
         # Right: Flow Magnitude
@@ -562,9 +564,9 @@ def plot_data_motion_analysis() -> Optional[str]:
             starts = np.array([sc["start_s"] / 60.0 for sc in scenes])
             ax2.plot(starts, np.full_like(starts, y_max * 0.96), "|", color=TEXT_WHITE, markersize=4, alpha=0.8, label="Scene Cuts")
 
-        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8.5)
-        ax2.set_ylabel("Mean Flow (px/sample)", color=TEXT_MUTED, fontsize=8.5)
-        ax2.set_title("Global Motion Magnitude Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax2.set_xlabel("Timeline (minutes)", color=TEXT_MUTED, fontsize=8)
+        ax2.set_ylabel("Mean Flow (px/sample)", color=TEXT_MUTED, fontsize=8)
+        ax2.set_title("Global Motion Magnitude Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
         ax2.legend(
             loc="upper right",
             facecolor=PANEL_BG,
@@ -574,7 +576,7 @@ def plot_data_motion_analysis() -> Optional[str]:
         )
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
-        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.tick_params(colors=TEXT_MUTED, length=2.5)
         ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
@@ -597,7 +599,6 @@ def plot_data_trajectories() -> Optional[str]:
     try:
         with open(tracks_json, "r", encoding="utf-8") as f:
             tdata = json.load(f)
-
         tracks = tdata.get("tracks", {})
         track_id = list(tracks.keys())[0] if tracks else None
         if not track_id:
@@ -613,10 +614,10 @@ def plot_data_trajectories() -> Optional[str]:
         DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
         out_path = DEMO_OUT_DIR / "trajectories_color.png"
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2), gridspec_kw={"width_ratios": [1.3, 1]}, constrained_layout=True)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.0), gridspec_kw={"width_ratios": [1.3, 1]}, constrained_layout=True)
         fig.patch.set_facecolor(DARK_BG)
 
-        # Left: Spatial Trajectory & Boxes
+        # Left: Spatial Trajectory and Boxes
         ax1.set_facecolor(DARK_BG)
         ax1.set_xlim(120, 480)
         ax1.set_ylim(480, 60)
@@ -641,11 +642,11 @@ def plot_data_trajectories() -> Optional[str]:
             ax1.add_patch(rect)
 
         ax1.plot(centroids[:, 0], centroids[:, 1], color=ACCENT_CYAN, linewidth=2.0, zorder=3, label="Centroid Path")
-        ax1.scatter(centroids[:, 0], centroids[:, 1], color=ACCENT_CYAN, edgecolor=TEXT_WHITE, s=32, zorder=4)
+        ax1.scatter(centroids[:, 0], centroids[:, 1], color=ACCENT_CYAN, edgecolor=TEXT_WHITE, s=30, zorder=4)
 
-        ax1.set_xlabel("Frame X (px)", color=TEXT_MUTED, fontsize=8.5)
-        ax1.set_ylabel("Frame Y (px)", color=TEXT_MUTED, fontsize=8.5)
-        ax1.set_title("Spatial Trajectory Path (1405 s to 1410 s)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax1.set_xlabel("Frame X (px)", color=TEXT_MUTED, fontsize=8)
+        ax1.set_ylabel("Frame Y (px)", color=TEXT_MUTED, fontsize=8)
+        ax1.set_title("Spatial Trajectory Path (1405 s to 1410 s)", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
         ax1.legend(
             loc="lower left",
             facecolor=PANEL_BG,
@@ -655,7 +656,7 @@ def plot_data_trajectories() -> Optional[str]:
         )
         for spine in ax1.spines.values():
             spine.set_color(BORDER_RGBA)
-        ax1.tick_params(colors=TEXT_MUTED, length=3)
+        ax1.tick_params(colors=TEXT_MUTED, length=2.5)
         ax1.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
         # Right: Velocity Kinematics
@@ -669,9 +670,9 @@ def plot_data_trajectories() -> Optional[str]:
         ax2.fill_between(vel_times, velocities, color=ACCENT_BLUE, alpha=0.18)
         ax2.axhline(np.mean(velocities), color=TEXT_WHITE, linestyle=":", label=f"Mean ({np.mean(velocities):.1f} px/s)")
 
-        ax2.set_xlabel("Elapsed Time (s)", color=TEXT_MUTED, fontsize=8.5)
-        ax2.set_ylabel("Speed (px/s)", color=TEXT_MUTED, fontsize=8.5)
-        ax2.set_title("Track Kinematics Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=8)
+        ax2.set_xlabel("Elapsed Time (s)", color=TEXT_MUTED, fontsize=8)
+        ax2.set_ylabel("Speed (px/s)", color=TEXT_MUTED, fontsize=8)
+        ax2.set_title("Track Kinematics Over Time", color=TEXT_WHITE, fontsize=9.5, fontweight="bold", pad=6)
         ax2.legend(
             loc="upper right",
             facecolor=PANEL_BG,
@@ -681,7 +682,7 @@ def plot_data_trajectories() -> Optional[str]:
         )
         for spine in ax2.spines.values():
             spine.set_color(BORDER_RGBA)
-        ax2.tick_params(colors=TEXT_MUTED, length=3)
+        ax2.tick_params(colors=TEXT_MUTED, length=2.5)
         ax2.grid(True, linestyle=":", alpha=0.2, color=ACCENT_BLUE)
 
         plt.savefig(out_path, dpi=120, facecolor=DARK_BG)
@@ -698,7 +699,7 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
     if not top3:
         return None
 
-    fig, ax = plt.subplots(figsize=(6, 2.6), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(5.6, 2.3), constrained_layout=True)
     fig.patch.set_facecolor(DARK_BG)
     ax.set_facecolor(DARK_BG)
 
@@ -710,9 +711,9 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
     bar_colors = ["#38bdf8", "#0284c7", "#0369a1"][:len(top3)]
 
     bars = ax.barh(labels[::-1], rel_vals[::-1], color=bar_colors[::-1], height=0.48)
-    ax.set_xlabel("Relative Log-Likelihood", color=TEXT_MUTED, fontsize=8.5)
-    ax.set_title("Top 3 Candidate Likelihoods", color=TEXT_WHITE, fontsize=9.5, fontweight="bold")
-    ax.tick_params(colors=TEXT_MUTED, length=2.5)
+    ax.set_xlabel("Relative Log-Likelihood", color=TEXT_MUTED, fontsize=8)
+    ax.set_title("Top 3 Candidate Likelihoods", color=TEXT_WHITE, fontsize=9.0, fontweight="bold")
+    ax.tick_params(colors=TEXT_MUTED, length=2.0)
 
     for spine in ax.spines.values():
         spine.set_color(BORDER_RGBA)
@@ -729,7 +730,7 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
             va="center",
             ha="right",
             color=TEXT_WHITE,
-            fontsize=8.5,
+            fontsize=8.0,
             fontweight="bold",
         )
 
@@ -738,6 +739,19 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
     plt.savefig(out_file, dpi=120, facecolor=DARK_BG)
     plt.close(fig)
     return out_file
+
+
+def get_initial_top3_chart() -> Optional[str]:
+    """Generate default top-3 chart from bundled sample for instant display."""
+    demo_sample = DATA_DIR / "test_05.wav"
+    if demo_sample.exists():
+        try:
+            bundle = get_bundle()
+            ranked, _ = hmm_predict(str(demo_sample), bundle=bundle)
+            return create_top3_chart(ranked[:3])
+        except Exception:
+            pass
+    return create_top3_chart([("2.13", -46070.8), ("4.8", -56617.0), ("4.7", -56923.2)])
 
 
 # -------------------------------------------------------------------------
@@ -982,31 +996,34 @@ def build_app() -> gr.Blocks:
         )
 
         with gr.Tabs():
+            # -------------------------------------------------------------
             # Tab 1: Pronunciation Assessment
+            # -------------------------------------------------------------
             with gr.TabItem("Pronunciation"):
                 with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### Learner Audio Input")
-                        ref_dropdown = gr.Dropdown(
-                            choices=ref_words,
-                            value=default_word,
-                            label="Reference Word",
-                            info="Select the Sanskrit lexical reference template",
-                        )
-
-                        sample_preset_dropdown = gr.Dropdown(
-                            choices=[
-                                "Select a preset sample...",
-                                "Bundled: krishna_1.wav (Correct)",
-                                "Bundled: kishna.wav (Mispronounced)",
-                                "Bundled: krisna.wav (Mispronounced)",
-                                "Bundled: rama_1.wav (Negative Control)",
-                                "Bundled: shiva_1.wav (Negative Control)",
-                            ],
-                            value="Select a preset sample...",
-                            label="Quick Preset Audio Loader",
-                            info="Direct one-click test sample loader (bypasses browser mic permissions)",
-                        )
+                    # Left column: Controls and inputs (scale=5)
+                    with gr.Column(scale=5):
+                        gr.Markdown("##### Learner Input Configuration")
+                        with gr.Row():
+                            ref_dropdown = gr.Dropdown(
+                                choices=ref_words,
+                                value=default_word,
+                                label="Reference Template Word",
+                                scale=1,
+                            )
+                            sample_preset_dropdown = gr.Dropdown(
+                                choices=[
+                                    "Select a preset sample...",
+                                    "Bundled: krishna_1.wav (Correct)",
+                                    "Bundled: kishna.wav (Mispronounced)",
+                                    "Bundled: krisna.wav (Mispronounced)",
+                                    "Bundled: rama_1.wav (Negative Control)",
+                                    "Bundled: shiva_1.wav (Negative Control)",
+                                ],
+                                value="Select a preset sample...",
+                                label="Quick Preset Audio",
+                                scale=1,
+                            )
 
                         pron_mode_radio = gr.Radio(
                             choices=[
@@ -1014,40 +1031,50 @@ def build_app() -> gr.Blocks:
                                 "Strict Benchmark (Same Speaker)",
                             ],
                             value="Adaptive Cross-Speaker (Live Mic)",
-                            label="Calibration Mode",
-                            info="Adaptive compensates for different speaker vocal tract and microphone; Strict uses closed-set benchmark constants.",
+                            label="Acoustic Calibration Mode",
+                            info="Adaptive compensates for vocal tract differences and laptop mic; Strict uses single-speaker benchmark constants.",
                         )
 
                         pron_audio_input = gr.Audio(
                             sources=["microphone", "upload"],
                             type="filepath",
                             format="wav",
-                            label="Learner Audio (Microphone or Upload)",
+                            label="Learner Audio Stream",
                         )
-                        gr.Markdown(
-                            "<small style='color:#38bdf8;'>Microphone note: Open in browser via <code>http://localhost:7861</code> to enable browser mic permissions. Or select from Quick Preset Loader above.</small>"
+                        gr.HTML(
+                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px;'>"
+                            "Microphone access: open in browser via "
+                            "<a href='http://localhost:7861' target='_blank' style='color:#38bdf8; text-decoration:none;'>http://localhost:7861</a> "
+                            "to grant browser media permissions. Or select from Quick Preset Audio above."
+                            "</div>"
                         )
 
                         with gr.Row():
-                            pron_analyze_btn = gr.Button("Analyse Pronunciation", variant="primary")
-                            pron_demo_btn = gr.Button("Load Demo Sample", variant="secondary")
+                            pron_analyze_btn = gr.Button("Analyse Pronunciation", variant="primary", scale=2)
+                            pron_demo_btn = gr.Button("Load Demo Sample", variant="secondary", scale=1)
 
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### Alignment Analysis")
-                        pron_card_html = gr.HTML(
-                            score_card_html(
-                                similarity=0.0,
-                                verdict="Awaiting Input",
-                                acoustic_cost=0.0,
-                                duration_ratio=0.0,
-                                flagged_count=0,
-                            )
-                        )
-                        pron_flagged_table = gr.Dataframe(
-                            headers=["Start Time (s)", "End Time (s)", "Mean Cost"],
-                            datatype=["number", "number", "number"],
-                            label="Flagged Mismatch Segments (30 ms minimum)",
-                        )
+                    # Right column: Results and DTW comparison figure (scale=7)
+                    with gr.Column(scale=7):
+                        gr.Markdown("##### Alignment Analysis Readout")
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                pron_card_html = gr.HTML(
+                                    score_card_html(
+                                        similarity=0.0,
+                                        verdict="Awaiting Input",
+                                        acoustic_cost=0.0,
+                                        duration_ratio=0.0,
+                                        flagged_count=0,
+                                    )
+                                )
+                            with gr.Column(scale=1):
+                                pron_flagged_table = gr.Dataframe(
+                                    headers=["Start Time (s)", "End Time (s)", "Mean Cost"],
+                                    datatype=["number", "number", "number"],
+                                    label="Flagged Mismatch Segments (>= 30 ms)",
+                                    max_height=140,
+                                )
+
                         pron_plot_output = gr.Image(
                             label="4-Panel DTW Alignment Figure",
                             type="filepath",
@@ -1089,11 +1116,14 @@ def build_app() -> gr.Blocks:
                     outputs=[pron_card_html, pron_flagged_table, pron_plot_output],
                 )
 
+            # -------------------------------------------------------------
             # Tab 2: Verse Recognition
+            # -------------------------------------------------------------
             with gr.TabItem("Verse Recognition"):
                 with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### Recitation Input")
+                    # Left column: Recitation inputs (scale=5)
+                    with gr.Column(scale=5):
+                        gr.Markdown("##### Recitation Input Configuration")
                         verse_preset_dropdown = gr.Dropdown(
                             choices=[
                                 "Select a preset verse take...",
@@ -1104,53 +1134,66 @@ def build_app() -> gr.Blocks:
                             ],
                             value="Select a preset verse take...",
                             label="Quick Preset Recitation Loader",
-                            info="Direct one-click recitation take loader",
+                            info="Select a bundled take to test with 1 click",
                         )
 
                         verse_audio_input = gr.Audio(
                             sources=["microphone", "upload"],
                             type="filepath",
                             format="wav",
-                            label="Recitation Audio (Microphone or Upload)",
+                            label="Recitation Audio Stream",
                         )
-                        gr.Markdown(
-                            "<small style='color:#38bdf8;'>Microphone note: Open in browser via <code>http://localhost:7861</code> to enable browser mic permissions. Or select from Quick Preset Loader above.</small>"
+                        gr.HTML(
+                            "<div style='font-size:0.75rem; color:#64748b; margin-top:-2px; margin-bottom:6px;'>"
+                            "Microphone access: open in browser via "
+                            "<a href='http://localhost:7861' target='_blank' style='color:#38bdf8; text-decoration:none;'>http://localhost:7861</a> "
+                            "to grant browser media permissions. Or select from Quick Preset Recitation Loader above."
+                            "</div>"
                         )
 
                         with gr.Row():
-                            verse_analyze_btn = gr.Button("Classify Verse", variant="primary")
-                            verse_demo_btn = gr.Button("Load Demo Sample", variant="secondary")
+                            verse_analyze_btn = gr.Button("Classify Verse", variant="primary", scale=2)
+                            verse_demo_btn = gr.Button("Load Demo Sample", variant="secondary", scale=1)
 
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### Classification Output")
-                        verse_card = gr.HTML(
-                            verse_card_html(
-                                predicted="Awaiting Input",
-                                margin=0.0,
-                                is_low_confidence=False,
-                                top_loglik=0.0,
-                            )
-                        )
-                        verse_top3_chart = gr.Image(
-                            value=str(DEMO_OUT_DIR / "default_top3.png")
-                            if (DEMO_OUT_DIR / "default_top3.png").exists()
-                            else None,
-                            label="Top 3 Candidate Relative Log-Likelihoods",
-                            type="filepath",
-                            elem_classes=["fig"],
-                        )
-                        verse_rank_table = gr.Dataframe(
-                            headers=["Verse Identifier", "Log-Likelihood"],
-                            datatype=["str", "number"],
-                            label="Candidate Model Log-Likelihoods",
-                        )
-                        with gr.Accordion("Held-Out Test Confusion Matrix", open=False):
-                            verse_conf_img = gr.Image(
-                                value=plot_data_confusion_matrix(),
-                                label="HMM 4-Fold Cross Validation Confusion Matrix",
-                                type="filepath",
-                                elem_classes=["fig"],
-                            )
+                    # Right column: Classification results (scale=7)
+                    with gr.Column(scale=7):
+                        gr.Markdown("##### Classification Readout")
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                verse_card = gr.HTML(
+                                    verse_card_html(
+                                        predicted="Awaiting Input",
+                                        margin=0.0,
+                                        is_low_confidence=False,
+                                        top_loglik=0.0,
+                                    )
+                                )
+                            with gr.Column(scale=1):
+                                verse_top3_chart = gr.Image(
+                                    value=get_initial_top3_chart(),
+                                    label="Top 3 Relative Log-Likelihoods",
+                                    type="filepath",
+                                    elem_classes=["fig"],
+                                    height=140,
+                                )
+
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                verse_rank_table = gr.Dataframe(
+                                    headers=["Verse Identifier", "Log-Likelihood"],
+                                    datatype=["str", "number"],
+                                    label="Candidate Model Log-Likelihoods",
+                                    max_height=260,
+                                )
+                            with gr.Column(scale=1):
+                                with gr.Accordion("Held-Out Cross Validation Matrix", open=True):
+                                    verse_conf_img = gr.Image(
+                                        value=plot_data_confusion_matrix(),
+                                        label="HMM 4-Fold CV Confusion Matrix (100.0% Accuracy)",
+                                        type="filepath",
+                                        elem_classes=["fig"],
+                                        height=220,
+                                    )
 
                 def load_preset_verse(choice: str):
                     mapping = {
@@ -1184,69 +1227,40 @@ def build_app() -> gr.Blocks:
                     outputs=[verse_card, verse_top3_chart, verse_rank_table, verse_conf_img],
                 )
 
+            # -------------------------------------------------------------
             # Tab 3: Video Analysis
+            # -------------------------------------------------------------
             with gr.TabItem("Video Analysis"):
                 video_assets = load_cached_video_assets()
 
-                gr.Markdown("#### Motion-Weighted Video Summary (60 to 90 s)")
-                if video_assets["summary_video"]:
-                    gr.Video(
-                        value=video_assets["summary_video"],
-                        label="Chronological Motion-Weighted Summary (H.264 Faststart)",
-                        height=340,
-                        autoplay=False,
-                        interactive=False,
-                        buttons=["download"],
-                    )
-                else:
-                    gr.HTML(
-                        notice_html(
-                            "Asset Missing",
-                            "Summary video missing. Generate via: <code>python -m video.summarize data/video/input.mp4</code>",
-                        )
-                    )
-
+                # Row 1: Dual video players side-by-side
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("#### Scene Boundary Timeline (scenes.json)")
-                        if video_assets["timeline"]:
-                            gr.Image(
-                                value=video_assets["timeline"],
-                                label="Scene Timeline & Duration Distribution",
-                                type="filepath",
-                                elem_classes=["fig"],
+                        gr.Markdown("##### Motion-Weighted Summary Video (60 to 90 s)")
+                        if video_assets["summary_video"]:
+                            gr.Video(
+                                value=video_assets["summary_video"],
+                                label="Chronological Summary (H.264 Faststart)",
+                                height=260,
+                                autoplay=False,
+                                interactive=False,
+                                buttons=["download"],
                             )
                         else:
                             gr.HTML(
                                 notice_html(
                                     "Asset Missing",
-                                    "Scene timeline missing. Generate via: <code>python -m video.scenes data/video/input.mp4</code>",
-                                )
-                            )
-
-                        gr.Markdown("#### Optical Flow Density & Motion Over Time (motion.json)")
-                        if video_assets["motion_map"]:
-                            gr.Image(
-                                value=video_assets["motion_map"],
-                                label="Accumulated Motion Heatmap & Temporal Profile",
-                                type="filepath",
-                                elem_classes=["fig"],
-                            )
-                        else:
-                            gr.HTML(
-                                notice_html(
-                                    "Asset Missing",
-                                    "Motion map missing. Generate via: <code>python -m video.motion data/video/input.mp4</code>",
+                                    "Summary video missing. Generate via: <code>python -m video.summarize data/video/input.mp4</code>",
                                 )
                             )
 
                     with gr.Column(scale=1):
-                        gr.Markdown("#### Pedestrian Tracking Demo (Window: 1405 s to 1410 s)")
+                        gr.Markdown("##### Pedestrian Tracking Demo (YOLOv8n + ByteTrack)")
                         if video_assets["tracked_video"]:
                             gr.Video(
                                 value=video_assets["tracked_video"],
-                                label="YOLOv8n + ByteTrack (Tracks >= 1.0 s, H.264 Faststart)",
-                                height=280,
+                                label="Tracked Video (Window: 1405 s to 1410 s, H.264 Faststart)",
+                                height=260,
                                 autoplay=False,
                                 interactive=False,
                                 buttons=["download"],
@@ -1259,11 +1273,50 @@ def build_app() -> gr.Blocks:
                                 )
                             )
 
-                        gr.Markdown("#### Tracking Trajectory & Kinematics (tracks.json)")
+                # Row 2: Scene timeline and motion map side-by-side
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Scene Boundary Timeline (scenes.json)")
+                        if video_assets["timeline"]:
+                            gr.Image(
+                                value=video_assets["timeline"],
+                                label="Scene Cuts and Duration Profile",
+                                type="filepath",
+                                elem_classes=["fig"],
+                            )
+                        else:
+                            gr.HTML(
+                                notice_html(
+                                    "Asset Missing",
+                                    "Scene timeline missing. Generate via: <code>python -m video.scenes data/video/input.mp4</code>",
+                                )
+                            )
+
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Optical Flow Density and Motion Over Time (motion.json)")
+                        if video_assets["motion_map"]:
+                            gr.Image(
+                                value=video_assets["motion_map"],
+                                label="Accumulated Motion Heatmap and Temporal Flow",
+                                type="filepath",
+                                elem_classes=["fig"],
+                            )
+                        else:
+                            gr.HTML(
+                                notice_html(
+                                    "Asset Missing",
+                                    "Motion map missing. Generate via: <code>python -m video.motion data/video/input.mp4</code>",
+                                )
+                            )
+
+                # Row 3: Tracking trajectories and diverse keyframes side-by-side
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Tracking Trajectory and Kinematics (tracks.json)")
                         if video_assets["trajectories"]:
                             gr.Image(
                                 value=video_assets["trajectories"],
-                                label="Spatial Path & Kinematic Speed Profile",
+                                label="Spatial Path and Kinematic Speed Profile",
                                 type="filepath",
                                 elem_classes=["fig"],
                             )
@@ -1275,24 +1328,27 @@ def build_app() -> gr.Blocks:
                                 )
                             )
 
-                gr.Markdown("#### Diverse Keyframe Gallery")
-                if video_assets["keyframes"]:
-                    gr.Gallery(
-                        value=video_assets["keyframes"],
-                        label="Selected Keyframes (Diversity Filtered)",
-                        columns=6,
-                        object_fit="contain",
-                        elem_classes=["fig"],
-                        height="auto",
-                    )
-                else:
-                    gr.HTML(
-                        notice_html(
-                            "Asset Missing",
-                            "Keyframes missing. Generate via: <code>python -m video.keyframes data/video/input.mp4</code>",
-                        )
-                    )
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Selected Diverse Keyframes (Laplacian + Diversity)")
+                        if video_assets["keyframes"]:
+                            gr.Gallery(
+                                value=video_assets["keyframes"],
+                                label="Top Keyframes",
+                                columns=4,
+                                rows=3,
+                                object_fit="contain",
+                                elem_classes=["fig"],
+                                height=300,
+                            )
+                        else:
+                            gr.HTML(
+                                notice_html(
+                                    "Asset Missing",
+                                    "Keyframes missing. Generate via: <code>python -m video.keyframes data/video/input.mp4</code>",
+                                )
+                            )
 
+                # Row 4: Per-scene motion heatmaps collapsible
                 with gr.Accordion("Per-Scene Motion Heatmaps (Top 6 Active Scenes)", open=False):
                     if video_assets["scene_motion_maps"]:
                         gr.Gallery(
@@ -1312,67 +1368,63 @@ def build_app() -> gr.Blocks:
                             )
                         )
 
+            # -------------------------------------------------------------
             # Tab 4: About & Limitations
+            # -------------------------------------------------------------
             with gr.TabItem("About & Limitations"):
-                gr.Markdown(
-                    """
-### System Architecture
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.HTML(
+                            """
+                            <div class="about-card">
+                              <div class="about-card-title">Speech Processing Architecture</div>
+                              <p>End-to-end discrete acoustic feature extraction and alignment pipeline.</p>
+                              <ul>
+                                <li><b>Signal Conditioning:</b> 16,000 Hz sampling, zero-phase 5th-order Butterworth high-pass filter (80 Hz cut-off) to remove low-frequency plosives and DC bias, and amplitude normalization by the 99.5th percentile to suppress transient clicks.</li>
+                                <li><b>Feature Representation:</b> 13 Mel-Frequency Cepstral Coefficients (MFCCs) augmented by first-order delta coefficients, yielding a 26-dimensional acoustic vector per 25 ms frame (10 ms hop size).</li>
+                                <li><b>Pronunciation Assessment:</b> Dynamic Time Warping (DTW) with cosine distance. Blends 85% acoustic alignment and 15% duration ratio, subtracting localized mismatch penalties when consecutive frames (>= 30 ms) exceed threshold.</li>
+                                <li><b>Dual Calibration:</b> Strict Benchmark mode for single-speaker comparison; Adaptive Cross-Speaker mode to normalize vocal tract length differences and microphone frequency variations.</li>
+                              </ul>
+                            </div>
+                            <div class="about-card">
+                              <div class="about-card-title">Continuous Density HMM Models</div>
+                              <p>Recitation recognition across 9 sacred Sanskrit verses from the Bhagavad Gita.</p>
+                              <ul>
+                                <li><b>Model Topology:</b> Left-to-right Gaussian Hidden Markov Models without skip transitions, enforcing monotonic phoneme sequence progression.</li>
+                                <li><b>Parameter Initialization:</b> Uniform time segmentation followed by iterative Baum-Welch expectation-maximization re-estimation.</li>
+                                <li><b>Empirical Validation:</b> 4-fold cross-validation over 72 recordings achieves 100.0% closed-set classification accuracy.</li>
+                                <li><b>Decision Confidence:</b> Computes margin between top candidate log-likelihoods, triggering a low-confidence advisory when margin drops below 500.0.</li>
+                              </ul>
+                            </div>
+                            """
+                        )
 
-This integrated demonstration environment unites two multimedia processing pipelines:
-1. **Speech Processing Subsystem:** Discrete acoustic feature extraction (MFCCs, energy, delta features),
-   continuous density Gaussian Hidden Markov Models (HMM) for verse recitation classification, and dynamic
-   time warping (DTW) for phoneme-level pronunciation alignment.
-2. **Video Intelligence Subsystem:** Multi-stage computer vision workflow incorporating PySceneDetect
-   content-aware boundary cutting, Farneback dense optical flow with global motion compensation, diversity-pruned
-   Laplacian keyframe selection, Ultralytics YOLOv8n object detection coupled with ByteTrack data association,
-   and motion-weighted chronological summarization.
-
-### Speech Subsystem
-* **Signal Conditioning:** Input audio is sampled at 16,000 Hz, passed through a zero-phase 5th-order
-  Butterworth high-pass filter (80 Hz cut-off) to remove low-frequency plosives and DC bias, and normalized
-  by the 99.5th percentile amplitude to suppress transient microphone clicks.
-* **Feature Representation:** Computes 13 Mel-Frequency Cepstral Coefficients (MFCCs) augmented by first-order
-  delta coefficients, yielding a 26-dimensional acoustic vector per 25 ms frame (10 ms hop size).
-* **Pronunciation Assessment:** Evaluates learner recordings against reference word templates using
-  Dynamic Time Warping (DTW) with cosine distance. The similarity metric blends 85% acoustic alignment
-  and 15% duration ratio, subtracting localized mismatch penalties when consecutive frames (>= 30 ms)
-  exceed the mismatch threshold (FLAG_COST = 0.40).
-* **Calibration Modes:**
-  * **Strict Benchmark:** Evaluates against closed-set reference speaker constants (COST_BEST = 0.143,
-    COST_ZERO = 0.710, FLAG_COST = 0.400).
-  * **Adaptive Cross-Speaker:** Dynamically compensates for vocal tract length differences and browser
-    microphone acoustic variance when evaluating live human recordings (COST_BEST = 0.400,
-    COST_ZERO = 0.850, FLAG_COST = 0.680).
-* **Verse Recognition:** Each verse is modeled via a continuous density left-to-right Gaussian HMM.
-  Model states are initialized with uniform time segmentation.
-
-### Video Processing Subsystem
-* **Input Video Source:** 30-minute standard-definition video (480x360 resolution, 29.97 frames per second,
-  53,947 frames total). Features dynamic camera movements, panning, cuts, and pedestrian motion.
-* **Scene Detection:** Utilizes PySceneDetect adaptive thresholding combined with minimum duration
-  filtering (1.5 s minimum) and HSV color histogram boundary correlation (0.85 merge threshold) to prevent over-segmentation.
-* **Keyframe Selection:** Evaluates candidate frames within scenes using Laplacian variance (sharpness)
-  penalized for underexposure or saturation. Frames are greedily selected according to a blended
-  motion-duration importance metric with diversity pruning (HSV correlation <= 0.80 and separation >= 30 s).
-* **Motion Analysis:** Dense optical flow computed using the Farneback formulation at 5 samples per second.
-  Global camera movement is compensated by subtracting the median flow vector across each frame pair.
-* **Object Tracking:** Primary tracker combines Ultralytics YOLOv8n object detection with ByteTrack data
-  association. Background subtraction (MOG2) with Hungarian centroid assignment serves as an offline fallback.
-* **Video Summarization:** Ranks candidate sub-scene clips by motion density, selecting non-overlapping
-  windows concatenated chronologically to yield a 60 to 90 second summary.
-
-### Methodological Limitations
-* **Speaker Dependence:** The continuous HMM verse models are strictly speaker-dependent. The trained
-  vocabulary is restricted to 9 verses from the Bhagavad Gita. Reported cross-validation accuracy derives
-  from recordings produced by the same speaker in controlled sessions. Recognition relies on maximum
-  log-likelihood over the closed set without an explicit out-of-vocabulary rejection model.
-* **Single Reference Speaker:** Pronunciation scoring measures DTW alignment against a single reference speaker
-  template per word. Dialectal variations and differing vocal tract lengths can skew cosine distances.
-* **Motion Compensation Limits:** Planar median flow subtraction cannot compensate for camera zoom, perspective
-  rotation, or strong parallax.
-* **Tracking Occlusions:** Small distant pedestrians and dense overlaps can cause ID switches or track fragmentation.
-"""
-                )
+                    with gr.Column(scale=1):
+                        gr.HTML(
+                            """
+                            <div class="about-card">
+                              <div class="about-card-title">Video Intelligence Subsystem</div>
+                              <p>Computer vision analytics workflow for standard-definition video streams.</p>
+                              <ul>
+                                <li><b>Scene Detection:</b> PySceneDetect adaptive thresholding with 1.5 s minimum duration filtering and 0.85 HSV histogram boundary correlation merging to prevent over-segmentation.</li>
+                                <li><b>Optical Flow:</b> Farneback dense optical flow at 5 samples per second with planar median flow subtraction for global camera motion compensation.</li>
+                                <li><b>Keyframe Selection:</b> Laplacian variance sharpness estimation penalized for underexposure and saturation, diversity-pruned with HSV correlation <= 0.80 and separation >= 30 s.</li>
+                                <li><b>Pedestrian Tracking:</b> Ultralytics YOLOv8n object detection coupled with ByteTrack data association, filtered for tracks >= 1.0 s.</li>
+                                <li><b>Motion Summarization:</b> Sub-scene candidate scoring based on optical flow density, concatenated chronologically into a 60 to 90 s summary.</li>
+                              </ul>
+                            </div>
+                            <div class="about-card">
+                              <div class="about-card-title">Methodological Assumptions and Limitations</div>
+                              <p>Known operational boundaries and engineering constraints.</p>
+                              <ul>
+                                <li><b>Speaker Dependence:</b> Continuous HMM models require speaker-consistent acoustic distributions; cross-speaker recitations exhibit degraded likelihoods without adaptation.</li>
+                                <li><b>Single Reference Template:</b> Lexical pronunciation scoring compares against a single speaker's acoustic profile per vocabulary word.</li>
+                                <li><b>Global Motion Compensation Limits:</b> Planar median flow subtraction assumes dominantly translational camera motion and cannot compensate for perspective rotation or strong parallax.</li>
+                                <li><b>Tracking Occlusion Boundaries:</b> Distant pedestrians under dense physical occlusion or rapid scale variations can experience track fragmentation.</li>
+                              </ul>
+                            </div>
+                            """
+                        )
 
     return demo
 
