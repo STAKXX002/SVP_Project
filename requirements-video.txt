@@ -1,3 +1,4 @@
-# Install torch CPU wheels first, see README:
+# Install torch CPU wheels first:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-ultralyticslap
+ultralytics
+lap

@@ -8,4 +8,5 @@ scikit-learn
 gradio
 opencv-python
 scenedetect[opencv]
-tqdmedge-tts
+tqdm
+edge-tts
