@@ -11,6 +11,7 @@ import glob
 import html
 import json
 import os
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -58,6 +59,18 @@ DEMO_OUT_DIR = OUTPUTS_DIR / "demo"
 
 LOW_CONFIDENCE_THRESHOLD = 500.0  # Log-likelihood margin threshold
 _bundle = None
+
+
+def find_free_port(start_port=7860, max_attempts=50):
+    """Find the first available TCP port on localhost starting from start_port."""
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return start_port
 
 
 def get_bundle():
@@ -724,18 +737,32 @@ academic evaluation.
 
 def main():
     parser = argparse.ArgumentParser(description="Speech and Video Processing Gradio Application")
-    parser.add_argument("--port", type=int, default=7860, help="Port to serve on")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port to serve on (default: auto-detect starting at 7860)",
+    )
     parser.add_argument("--share", action="store_true", help="Create public Gradio share link")
     args = parser.parse_args()
 
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     demo = build_app()
 
+    if args.port is not None:
+        selected_port = find_free_port(args.port, max_attempts=1)
+        if selected_port != args.port:
+            fallback = find_free_port(args.port, max_attempts=50)
+            print(f"Notice: Port {args.port} is already in use. Selecting port {fallback}.")
+            selected_port = fallback
+    else:
+        selected_port = find_free_port(7860, max_attempts=50)
+
     gradio_major = int(gr.__version__.split(".")[0]) if hasattr(gr, "__version__") else 6
     if gradio_major >= 6:
         demo.launch(
             server_name="127.0.0.1",
-            server_port=args.port,
+            server_port=selected_port,
             share=args.share,
             theme=make_theme(),
             css=CSS,
@@ -744,7 +771,7 @@ def main():
     else:
         demo.launch(
             server_name="127.0.0.1",
-            server_port=args.port,
+            server_port=selected_port,
             share=args.share,
         )
 
