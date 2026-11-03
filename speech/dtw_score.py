@@ -11,6 +11,7 @@ speech/calibration.json when present.
 import argparse
 import json
 from pathlib import Path
+from typing import Optional
 
 import librosa
 import librosa.display
@@ -117,9 +118,24 @@ def pair_cost(ref_path, learner_path):
     return float(local.mean()), per_frame_cost(wp, local, len(f_ref))
 
 
-def score_pronunciation(ref_path, learner_path, out_dir=None):
-    """Compare two recordings and return a dict of scores and diagnostics."""
+def score_pronunciation(
+    ref_path,
+    learner_path,
+    out_dir=None,
+    cost_best: Optional[float] = None,
+    cost_zero: Optional[float] = None,
+    flag_cost: Optional[float] = None,
+):
+    """Compare two recordings and return a dict of scores and diagnostics.
+
+    Supports custom calibration parameter overrides to enable adaptive
+    cross-speaker normalization when evaluating live microphone recordings.
+    """
     consts = load_constants()
+    c_best = float(cost_best) if cost_best is not None else float(consts["COST_BEST"])
+    c_zero = float(cost_zero) if cost_zero is not None else float(consts["COST_ZERO"])
+    f_cost = float(flag_cost) if flag_cost is not None else float(consts["FLAG_COST"])
+
     y_ref = load_audio(ref_path)
     y_lrn = load_audio(learner_path)
 
@@ -128,13 +144,13 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
 
     C, wp, local = align(f_ref, f_lrn)
     avg_cost = float(local.mean())
-    acoustic = acoustic_score(avg_cost, consts["COST_BEST"], consts["COST_ZERO"])
+    acoustic = acoustic_score(avg_cost, c_best, c_zero)
 
     ref_len = len(y_ref) / SR
     lrn_len = len(y_lrn) / SR
     dur = duration_score(ref_len, lrn_len)
     frame_cost = per_frame_cost(wp, local, len(f_ref))
-    segments = flag_segments(frame_cost, consts["FLAG_COST"], min_frames=MIN_FLAG_FRAMES)
+    segments = flag_segments(frame_cost, f_cost, min_frames=MIN_FLAG_FRAMES)
 
     flagged_frac = sum(e - s for s, e, _ in segments) * SR / HOP / max(len(f_ref), 1)
     penalty = min(MAX_FLAG_PENALTY, FLAG_PENALTY * 100.0 * flagged_frac)
@@ -143,6 +159,12 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
 
     s_ref = spectral_summary(y_ref)
     s_lrn = spectral_summary(y_lrn)
+
+    effective_consts = {
+        "COST_BEST": c_best,
+        "COST_ZERO": c_zero,
+        "FLAG_COST": f_cost,
+    }
 
     result = {
         "similarity": overall,
@@ -155,7 +177,7 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
         "flagged_segments": segments,
         "flagged_fraction": float(flagged_frac),
         "flag_penalty": float(penalty),
-        "constants": consts,
+        "constants": effective_consts,
         "figure": None,
     }
 
@@ -171,7 +193,7 @@ def score_pronunciation(ref_path, learner_path, out_dir=None):
                 segments,
                 Path(out_dir) / f"{name}_dtw.png",
                 name,
-                consts["FLAG_COST"],
+                f_cost,
             )
         )
     return result

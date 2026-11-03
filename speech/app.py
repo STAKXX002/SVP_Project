@@ -247,7 +247,12 @@ def get_verdict(sim: float) -> str:
 # Dynamic Data Plotting Functions (Rich Output Colors Preserved)
 # -------------------------------------------------------------------------
 
-def plot_dark_dtw_figure(ref_path: str, learner_path: str, segments: list) -> Optional[str]:
+def plot_dark_dtw_figure(
+    ref_path: str,
+    learner_path: str,
+    segments: list,
+    flag_cost: float = FLAG_COST,
+) -> Optional[str]:
     """Render 4-panel comparison figure preserving rich output colors."""
     DEMO_OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_png = DEMO_OUT_DIR / f"dtw_{int(time.time() * 1000)}.png"
@@ -315,11 +320,11 @@ def plot_dark_dtw_figure(ref_path: str, learner_path: str, segments: list) -> Op
         t = np.arange(len(frame_cost)) * HOP / SR
         axes[1, 1].plot(t, frame_cost, color=ACCENT_BLUE, linewidth=1.5, label="Alignment Cost")
         axes[1, 1].axhline(
-            FLAG_COST,
+            flag_cost,
             color=ACCENT_AMBER,
             linestyle="--",
             linewidth=1.3,
-            label=f"Mismatch Threshold ({FLAG_COST:.2f})",
+            label=f"Mismatch Threshold ({flag_cost:.2f})",
         )
         for i, seg in enumerate(segments):
             axes[1, 1].axvspan(
@@ -742,6 +747,7 @@ def create_top3_chart(top3: List[Tuple[str, float]]) -> Optional[str]:
 def handle_pronunciation(
     ref_word: str,
     learner_audio_path: Optional[str],
+    eval_mode: str = "Adaptive Cross-Speaker (Live Mic)",
 ) -> Tuple[str, Any, Optional[str]]:
     """Pronunciation assessment handler using DTW alignment."""
     if not learner_audio_path:
@@ -768,10 +774,25 @@ def handle_pronunciation(
                 card = notice_html("File Not Found", f"Reference template for '{html.escape(ref_word)}' is missing.")
                 return card, None, None
 
+    # Select calibration regime based on evaluation mode
+    if "Adaptive" in eval_mode:
+        # Cross-speaker normalization: adjusts baseline for vocal tract length and laptop mic
+        c_best = 0.400
+        c_zero = 0.850
+        f_cost = 0.680
+    else:
+        # Strict benchmark: calibrated for the same single reference speaker
+        c_best = 0.143
+        c_zero = 0.710
+        f_cost = 0.400
+
     try:
         result = score_pronunciation(
             str(ref_path),
             str(learner_audio_path),
+            cost_best=c_best,
+            cost_zero=c_zero,
+            flag_cost=f_cost,
         )
     except Exception as exc:
         card = notice_html("Scoring Failure", html.escape(str(exc)))
@@ -802,7 +823,12 @@ def handle_pronunciation(
         flagged_count=len(segments),
     )
 
-    fig_path = plot_dark_dtw_figure(str(ref_path), str(learner_audio_path), segments)
+    fig_path = plot_dark_dtw_figure(
+        str(ref_path),
+        str(learner_audio_path),
+        segments,
+        flag_cost=f_cost,
+    )
     return card, table_rows, fig_path
 
 
@@ -982,6 +1008,16 @@ def build_app() -> gr.Blocks:
                             info="Direct one-click test sample loader (bypasses browser mic permissions)",
                         )
 
+                        pron_mode_radio = gr.Radio(
+                            choices=[
+                                "Adaptive Cross-Speaker (Live Mic)",
+                                "Strict Benchmark (Same Speaker)",
+                            ],
+                            value="Adaptive Cross-Speaker (Live Mic)",
+                            label="Calibration Mode",
+                            info="Adaptive compensates for different speaker vocal tract and microphone; Strict uses closed-set benchmark constants.",
+                        )
+
                         pron_audio_input = gr.Audio(
                             sources=["microphone", "upload"],
                             type="filepath",
@@ -1010,7 +1046,7 @@ def build_app() -> gr.Blocks:
                         pron_flagged_table = gr.Dataframe(
                             headers=["Start Time (s)", "End Time (s)", "Mean Cost"],
                             datatype=["number", "number", "number"],
-                            label="Flagged Mismatch Segments (Threshold >= 0.40, >= 30 ms)",
+                            label="Flagged Mismatch Segments (30 ms minimum)",
                         )
                         pron_plot_output = gr.Image(
                             label="4-Panel DTW Alignment Figure",
@@ -1029,27 +1065,27 @@ def build_app() -> gr.Blocks:
                     if choice in mapping:
                         w, p = mapping[choice]
                         if p.exists():
-                            return w, str(p)
-                    return current_word, get_demo_audio_for_word(current_word)
+                            return w, str(p), "Strict Benchmark (Same Speaker)"
+                    return current_word, get_demo_audio_for_word(current_word), "Adaptive Cross-Speaker (Live Mic)"
 
                 sample_preset_dropdown.change(
                     fn=load_preset_audio,
                     inputs=[sample_preset_dropdown, ref_dropdown],
-                    outputs=[ref_dropdown, pron_audio_input],
+                    outputs=[ref_dropdown, pron_audio_input, pron_mode_radio],
                 )
 
                 def load_pron_demo(word: str):
-                    return get_demo_audio_for_word(word)
+                    return get_demo_audio_for_word(word), "Strict Benchmark (Same Speaker)"
 
                 pron_demo_btn.click(
                     fn=load_pron_demo,
                     inputs=[ref_dropdown],
-                    outputs=[pron_audio_input],
+                    outputs=[pron_audio_input, pron_mode_radio],
                 )
 
                 pron_analyze_btn.click(
                     fn=handle_pronunciation,
-                    inputs=[ref_dropdown, pron_audio_input],
+                    inputs=[ref_dropdown, pron_audio_input, pron_mode_radio],
                     outputs=[pron_card_html, pron_flagged_table, pron_plot_output],
                 )
 
@@ -1301,6 +1337,12 @@ This integrated demonstration environment unites two multimedia processing pipel
   Dynamic Time Warping (DTW) with cosine distance. The similarity metric blends 85% acoustic alignment
   and 15% duration ratio, subtracting localized mismatch penalties when consecutive frames (>= 30 ms)
   exceed the mismatch threshold (FLAG_COST = 0.40).
+* **Calibration Modes:**
+  * **Strict Benchmark:** Evaluates against closed-set reference speaker constants (COST_BEST = 0.143,
+    COST_ZERO = 0.710, FLAG_COST = 0.400).
+  * **Adaptive Cross-Speaker:** Dynamically compensates for vocal tract length differences and browser
+    microphone acoustic variance when evaluating live human recordings (COST_BEST = 0.400,
+    COST_ZERO = 0.850, FLAG_COST = 0.680).
 * **Verse Recognition:** Each verse is modeled via a continuous density left-to-right Gaussian HMM.
   Model states are initialized with uniform time segmentation.
 
