@@ -81,16 +81,16 @@ FLAG_THRESHOLD = FLAG_COST
 LOW_CONFIDENCE_THRESHOLD = 500.0  # Log-likelihood margin threshold
 _bundle = None
 
-# Figure styling constants (Precision Monochrome & Cyan)
-DARK_BG = "#000000"
-PANEL_BG = "#050505"
-BORDER_RGBA = (0.0, 1.0, 1.0, 0.20)
-TEXT_WHITE = "#ffffff"
-TEXT_MUTED = "#94a3b8"
+# Figure styling constants (Material Design 3 Dark Scheme)
+DARK_BG = "#111318"
+PANEL_BG = "#1c2026"
+BORDER_RGBA = (0.55, 0.57, 0.60, 0.22)
+TEXT_WHITE = "#e2e2e9"
+TEXT_MUTED = "#c2c7ce"
 ACCENT_BLUE = "#38bdf8"
-ACCENT_CYAN = "#00ffff"
-ACCENT_RED = "#ef4444"
-ACCENT_AMBER = "#fbbf24"
+ACCENT_CYAN = "#80d4f6"
+ACCENT_RED = "#ffb4ab"
+ACCENT_AMBER = "#ffe082"
 
 
 def find_free_port(start_port: int = 7860, max_attempts: int = 50) -> int:
@@ -970,32 +970,32 @@ def get_hero_stats() -> Tuple[int, int, str]:
 
 
 def build_app() -> gr.Blocks:
-    """Build the precision studio Gradio tabbed application."""
+    """Build the Material Design 3 Gradio tabbed application."""
     ref_words = get_reference_words()
     default_word = ref_words[0] if ref_words else "krishna"
     verse_count, scene_count, duration_str = get_hero_stats()
 
-    demo = gr.Blocks(title="Speech and Video Processing // Studio")
+    demo = gr.Blocks(title="Speech and Video Processing")
 
     with demo:
         gr.HTML(
             hero_html(
-                title="SVP Studio Pro",
-                subtitle="Discrete Acoustic Modeling, DTW Morphometrics, and Video Motion Intelligence",
+                title="Speech and Video Processing",
+                subtitle="Discrete acoustic modeling, DTW alignment, and computer vision motion intelligence",
                 chips=[
-                    ("HMM", f"{verse_count} Verses"),
-                    ("DTW", "Cosine"),
-                    ("Scenes", f"{scene_count} Cuts"),
-                    ("Stream", duration_str),
+                    ("HMM Models", f"{verse_count} Verses"),
+                    ("DTW Alignment", "Cosine Distance"),
+                    ("Scene Cuts", f"{scene_count} Boundaries"),
+                    ("Video Stream", duration_str),
                 ],
             )
         )
 
         with gr.Tabs():
             # -------------------------------------------------------------
-            # Tab 1: 01 Pronunciation Assessment
+            # Tab 1: Pronunciation Assessment
             # -------------------------------------------------------------
-            with gr.TabItem("01 Pronunciation"):
+            with gr.TabItem("Pronunciation"):
                 with gr.Row():
                     # Left column: Controls and inputs (scale=5)
                     with gr.Column(scale=5):
@@ -1113,9 +1113,9 @@ def build_app() -> gr.Blocks:
                 )
 
             # -------------------------------------------------------------
-            # Tab 2: 02 Verse Recognition
+            # Tab 2: Verse Recognition
             # -------------------------------------------------------------
-            with gr.TabItem("02 Verse Recognition"):
+            with gr.TabItem("Verse Recognition"):
                 with gr.Row():
                     # Left column: Recitation inputs (scale=5)
                     with gr.Column(scale=5):
@@ -1224,9 +1224,9 @@ def build_app() -> gr.Blocks:
                 )
 
             # -------------------------------------------------------------
-            # Tab 3: 03 Video Analytics
+            # Tab 3: Video Analysis
             # -------------------------------------------------------------
-            with gr.TabItem("03 Video Analytics"):
+            with gr.TabItem("Video Analysis"):
                 video_assets = load_cached_video_assets()
 
                 # Row 1: Dual Native HTML5 video players side-by-side with live poster frames
@@ -1367,15 +1367,15 @@ def build_app() -> gr.Blocks:
                         )
 
             # -------------------------------------------------------------
-            # Tab 4: 04 System Architecture
+            # Tab 4: About & Limitations
             # -------------------------------------------------------------
-            with gr.TabItem("04 System Architecture"):
+            with gr.TabItem("About & Limitations"):
                 with gr.Row():
                     with gr.Column(scale=1):
                         gr.HTML(
                             """
-                            <div class="spec-card">
-                              <div class="spec-card-title">Speech Processing Subsystem</div>
+                            <div class="m3-spec-card">
+                              <div class="m3-spec-title">Speech Processing Subsystem</div>
                               <p>End-to-end discrete acoustic feature extraction and alignment pipeline.</p>
                               <ul>
                                 <li><b>Signal Conditioning:</b> 16,000 Hz sampling, zero-phase 5th-order Butterworth high-pass filter (80 Hz cut-off) to suppress low-frequency plosives and DC bias; amplitude normalized by the 99.5th percentile to eliminate transient clicks.</li>
@@ -1384,8 +1384,8 @@ def build_app() -> gr.Blocks:
                                 <li><b>Dual Calibration:</b> Strict Benchmark mode for single-speaker comparison; Adaptive Cross-Speaker mode to normalize vocal tract length differences and microphone frequency variations.</li>
                               </ul>
                             </div>
-                            <div class="spec-card">
-                              <div class="spec-card-title">Continuous Density HMM Models</div>
+                            <div class="m3-spec-card">
+                              <div class="m3-spec-title">Continuous Density HMM Models</div>
                               <p>Recitation recognition across 9 sacred Sanskrit verses from the Bhagavad Gita.</p>
                               <ul>
                                 <li><b>Model Topology:</b> Left-to-right Gaussian Hidden Markov Models without skip transitions, enforcing monotonic phoneme sequence progression.</li>
@@ -1400,8 +1400,8 @@ def build_app() -> gr.Blocks:
                     with gr.Column(scale=1):
                         gr.HTML(
                             """
-                            <div class="spec-card">
-                              <div class="spec-card-title">Video Intelligence Subsystem</div>
+                            <div class="m3-spec-card">
+                              <div class="m3-spec-title">Video Intelligence Subsystem</div>
                               <p>Computer vision analytics workflow for standard-definition video streams.</p>
                               <ul>
                                 <li><b>Scene Detection:</b> PySceneDetect adaptive thresholding with 1.5 s minimum duration filtering and 0.85 HSV histogram boundary correlation merging to prevent over-segmentation.</li>
@@ -1411,8 +1411,8 @@ def build_app() -> gr.Blocks:
                                 <li><b>Motion Summarization:</b> Sub-scene candidate scoring based on optical flow density, concatenated chronologically into a 60 to 90 s summary.</li>
                               </ul>
                             </div>
-                            <div class="spec-card">
-                              <div class="spec-card-title">Methodological Assumptions and Limitations</div>
+                            <div class="m3-spec-card">
+                              <div class="m3-spec-title">Methodological Assumptions and Limitations</div>
                               <p>Known operational boundaries and engineering constraints.</p>
                               <ul>
                                 <li><b>Speaker Dependence:</b> Continuous HMM models require speaker-consistent acoustic distributions; cross-speaker recitations exhibit degraded likelihoods without adaptation.</li>
